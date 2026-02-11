@@ -1,0 +1,10 @@
+pandas==2.2.3
+numpy==1.26.4
+pandas-datareader==0.10.0
+scikit-learn==1.6.1
+plotly==5.24.1
+streamlit==1.41.1
+joblib==1.4.2
+yfinance==0.2.54
+statsmodels==0.14.4
+ngboost==0.5.6

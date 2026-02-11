@@ -1,0 +1,1 @@
+"""Recession probability lab package."""
