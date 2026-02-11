@@ -1,0 +1,118 @@
+{
+  "selected_model": "ngboost",
+  "selected_test_metrics": {
+    "roc_auc": 0.5170670037926675,
+    "average_precision": 0.19703762256076138,
+    "brier_score": 0.0713028998953988,
+    "log_loss": 0.2896525832727181,
+    "positive_rate": 0.058333333333333334,
+    "predicted_positive_rate": 0.041666666666666664
+  },
+  "all_model_test_metrics": {
+    "ngboost": {
+      "roc_auc": 0.5170670037926675,
+      "average_precision": 0.19703762256076138,
+      "brier_score": 0.0713028998953988,
+      "log_loss": 0.2896525832727181,
+      "positive_rate": 0.058333333333333334,
+      "predicted_positive_rate": 0.041666666666666664
+    },
+    "bayesian_dynamic": {
+      "roc_auc": 0.6839443742098609,
+      "average_precision": 0.1181795254111738,
+      "brier_score": 0.08494911373890189,
+      "log_loss": 0.5723781806291376,
+      "positive_rate": 0.058333333333333334,
+      "predicted_positive_rate": 0.03333333333333333
+    },
+    "ensemble": {
+      "roc_auc": 0.7168141592920354,
+      "average_precision": 0.2519705585061089,
+      "brier_score": 0.08686837759828268,
+      "log_loss": 0.29294572391631396,
+      "positive_rate": 0.058333333333333334,
+      "predicted_positive_rate": 0.075
+    },
+    "hist_gb": {
+      "roc_auc": 0.6156763590391909,
+      "average_precision": 0.350854192587375,
+      "brier_score": 0.11608321908851202,
+      "log_loss": 0.4394482682532877,
+      "positive_rate": 0.058333333333333334,
+      "predicted_positive_rate": 0.125
+    },
+    "logistic": {
+      "roc_auc": 0.763590391908976,
+      "average_precision": 0.14788287899700941,
+      "brier_score": 0.206651255419147,
+      "log_loss": 0.9965440549906125,
+      "positive_rate": 0.058333333333333334,
+      "predicted_positive_rate": 0.325
+    }
+  },
+  "algorithm_catalog": [
+    {
+      "id": "logistic",
+      "name": "Logistic Regression",
+      "status": "active",
+      "what_it_does": "Baseline probability model. Easy to interpret and explain."
+    },
+    {
+      "id": "hist_gb",
+      "name": "Histogram Gradient Boosting",
+      "status": "active",
+      "what_it_does": "Tree-based model that captures nonlinear patterns and interactions."
+    },
+    {
+      "id": "bayesian_dynamic",
+      "name": "Bayesian Dynamic Model",
+      "status": "active",
+      "what_it_does": "Bayesian linear model with time dynamics and uncertainty bands."
+    },
+    {
+      "id": "ngboost",
+      "name": "NGBoost",
+      "status": "active",
+      "what_it_does": "Natural Gradient Boosting for full predictive distributions."
+    },
+    {
+      "id": "ensemble",
+      "name": "Ensemble Average",
+      "status": "active",
+      "what_it_does": "Averages probabilities from active base models for stability."
+    },
+    {
+      "id": "markov_switching",
+      "name": "Markov Switching Model",
+      "status": "active",
+      "what_it_does": "Detects regime shifts (calm/watch/stress) from probability dynamics."
+    }
+  ],
+  "horizon_months": 6,
+  "test_months": 120,
+  "walkforward_min_train_months": 180,
+  "alert_threshold": 0.4,
+  "florida_stage1_latest": {
+    "date": "2026-01-31",
+    "florida_stress_index": 74.0041928721174,
+    "florida_stress_zone": "Stress",
+    "florida_stress_mom_change": 12.159329140461217,
+    "florida_top_drivers": "Florida Unemployment Rate: reduced stress | Florida Total Payroll Growth (YoY): added stress | Florida Unemployment Change (3-month): added stress"
+  },
+  "generated_utc": "2026-02-11T18:38:55.052285Z",
+  "markov_switching_latest": {
+    "date": "2026-02-28",
+    "latest_regime": "watch",
+    "latest_signal_value": 0.07870636799157536,
+    "regime_probabilities": {
+      "calm": 0.0,
+      "watch": 0.9552460913041756,
+      "stress": 0.04475390869582451
+    },
+    "regime_signal_means": {
+      "calm": 0.0026023778287261523,
+      "watch": 0.035905220453573736,
+      "stress": 0.6386037212668143
+    }
+  }
+}

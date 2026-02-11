@@ -3,5 +3,3 @@ __pycache__/
 .venv/
 .env
 artifacts/*.pkl
-artifacts/*.csv
-artifacts/*.json

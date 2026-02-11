@@ -1,0 +1,15 @@
+{
+  "date": "2026-02-28",
+  "latest_regime": "watch",
+  "latest_signal_value": 0.07870636799157536,
+  "regime_probabilities": {
+    "calm": 0.0,
+    "watch": 0.9552460913041756,
+    "stress": 0.04475390869582451
+  },
+  "regime_signal_means": {
+    "calm": 0.0026023778287261523,
+    "watch": 0.035905220453573736,
+    "stress": 0.6386037212668143
+  }
+}
