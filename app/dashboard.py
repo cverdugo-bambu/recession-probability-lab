@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime
 import json
 from pathlib import Path
 import sys
@@ -7,8 +8,11 @@ import sys
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
+import plotly.io as pio
 from plotly.subplots import make_subplots
 import streamlit as st
+from scipy.special import expit as sigmoid
+from scipy.special import logit
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
@@ -18,6 +22,58 @@ if str(SRC) not in sys.path:
 from recession_project.config import DEFAULT_ALERT_THRESHOLD, FEATURE_DESCRIPTIONS, FEATURE_LABELS
 
 ARTIFACT_DIR = ROOT / "artifacts"
+
+# ---------------------------------------------------------------------------
+# Modern Plotly theme — white background, clean grid, Inter-style font
+# ---------------------------------------------------------------------------
+_MODERN_TEMPLATE = go.layout.Template(
+    layout=go.Layout(
+        font=dict(family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif", size=13, color="#1a1a2e"),
+        paper_bgcolor="#ffffff",
+        plot_bgcolor="#ffffff",
+        title=dict(font=dict(size=17, color="#1a1a2e"), x=0.0, xanchor="left"),
+        colorway=[
+            "#1f77b4", "#ff6b35", "#2ecc71", "#e74c3c",
+            "#9b59b6", "#1abc9c", "#f39c12", "#3498db",
+            "#e67e22", "#2c3e50",
+        ],
+        xaxis=dict(
+            showgrid=True,
+            gridcolor="#eaedf2",
+            gridwidth=1,
+            zeroline=False,
+            linecolor="#d0d5dd",
+            linewidth=1,
+            title=dict(font=dict(size=12, color="#475467")),
+            tickfont=dict(size=11, color="#475467"),
+        ),
+        yaxis=dict(
+            showgrid=True,
+            gridcolor="#eaedf2",
+            gridwidth=1,
+            zeroline=False,
+            linecolor="#d0d5dd",
+            linewidth=1,
+            title=dict(font=dict(size=12, color="#475467")),
+            tickfont=dict(size=11, color="#475467"),
+        ),
+        legend=dict(
+            bgcolor="rgba(255,255,255,0.9)",
+            bordercolor="#eaedf2",
+            borderwidth=1,
+            font=dict(size=11),
+        ),
+        margin=dict(l=48, r=24, t=56, b=40),
+        hoverlabel=dict(
+            bgcolor="#ffffff",
+            bordercolor="#d0d5dd",
+            font=dict(size=12, color="#1a1a2e"),
+        ),
+        hovermode="x unified",
+    ),
+)
+pio.templates["modern_white"] = _MODERN_TEMPLATE
+pio.templates.default = "modern_white"
 
 MODEL_LABELS = {
     "logistic": "Logistic Regression (simple + interpretable)",
@@ -108,6 +164,174 @@ NBER_RECESSIONS = [
     ("2001-03-01", "2001-11-01"),
     ("2007-12-01", "2009-06-01"),
     ("2020-02-01", "2020-04-01"),
+]
+
+# ---------------------------------------------------------------------------
+# Action Center constants
+# ---------------------------------------------------------------------------
+
+SEVERITY_ORDER = {"Critical": 0, "High": 1, "Medium": 2, "Low": 3}
+
+SEVERITY_COLORS = {
+    "Critical": "#d62728",
+    "High": "#ff7f0e",
+    "Medium": "#f0c929",
+    "Low": "#2ca02c",
+}
+
+# Each entry: thresholds (from worst to least bad), area, review cadence,
+# direction ("higher" or "lower" is worse), danger_zone value for early warning
+INDICATOR_THRESHOLDS: dict[str, dict] = {
+    "unemployment_3m_delta": {
+        "thresholds": [
+            (0.5, "Critical", "Unemployment rising rapidly (+{val:.2f}pp in 3 months). Activate emergency labor market programs: expand UI benefits, accelerate workforce retraining, coordinate with state agencies."),
+            (0.3, "High", "Unemployment rising significantly (+{val:.2f}pp in 3 months). Prepare labor market support: review UI eligibility, fund job placement services, monitor mass layoff filings."),
+            (0.1, "Medium", "Unemployment ticking up (+{val:.2f}pp in 3 months). Monitor weekly claims data and regional employment trends for acceleration."),
+        ],
+        "area": "Labor",
+        "review": "weekly",
+        "direction": "higher",
+        "danger_zone": 0.5,
+    },
+    "credit_spread": {
+        "thresholds": [
+            (3.5, "Critical", "Credit spreads at {val:.2f}% — severe financial stress. Review bank lending conditions, ensure liquidity backstops are operational, monitor corporate default risk."),
+            (2.5, "High", "Credit spreads elevated at {val:.2f}%. Monitor corporate bond markets, stress-test bank portfolios, review counterparty exposures."),
+            (2.0, "Medium", "Credit spreads at {val:.2f}% — above normal. Track weekly issuance and secondary market liquidity."),
+        ],
+        "area": "Financial",
+        "review": "daily",
+        "direction": "higher",
+        "danger_zone": 3.5,
+    },
+    "yield_spread": {
+        "thresholds": [
+            (-0.5, "Critical", "Yield curve deeply inverted at {val:.2f}%. Historically precedes recessions by 6-18 months. Assess monetary policy stance and forward rate expectations."),
+            (0.0, "High", "Yield curve inverted at {val:.2f}%. Historically a strong recession signal. Review rate path, forward guidance, duration positioning."),
+            (0.5, "Medium", "Yield curve flattening at {val:.2f}%. Monitor for potential inversion — a classic leading indicator."),
+        ],
+        "area": "Monetary",
+        "review": "weekly",
+        "direction": "lower",
+        "danger_zone": -0.5,
+    },
+    "vix_level": {
+        "thresholds": [
+            (35, "Critical", "VIX at {val:.1f} — extreme market fear. Expect elevated volatility, potential margin calls. Ensure risk limits are tight and hedging is in place."),
+            (25, "High", "VIX at {val:.1f} — elevated fear. Review portfolio hedges, reduce policy uncertainty in communications, monitor options market."),
+            (20, "Medium", "VIX at {val:.1f} — above average. Watch for catalysts that could spike volatility further."),
+        ],
+        "area": "Market",
+        "review": "daily",
+        "direction": "higher",
+        "danger_zone": 35,
+    },
+    "nfci": {
+        "thresholds": [
+            (0.5, "Critical", "Financial conditions severely tight (NFCI: {val:.2f}). Credit markets stressed — monitor bank lending, commercial paper, and money markets."),
+            (0.0, "High", "Financial conditions tightening (NFCI: {val:.2f}). Review credit availability, interbank rates, and financial sector stability."),
+            (-0.3, "Medium", "Financial conditions firming (NFCI: {val:.2f}). Track weekly for acceleration of tightening."),
+        ],
+        "area": "Financial",
+        "review": "weekly",
+        "direction": "higher",
+        "danger_zone": 0.5,
+    },
+    "payrolls_yoy": {
+        "thresholds": [
+            (-1.0, "Critical", "Payrolls contracting {val:.1f}% YoY — active job losses. Coordinate federal/state employment support, consider stimulus measures."),
+            (0.0, "High", "Payroll growth stalled at {val:.1f}% YoY. Economy near zero job creation — prepare contingency plans."),
+            (0.5, "Medium", "Payroll growth slowing to {val:.1f}% YoY. Monitor hiring surveys and job openings for further weakening."),
+        ],
+        "area": "Labor",
+        "review": "biweekly",
+        "direction": "lower",
+        "danger_zone": -1.0,
+    },
+    "industrial_prod_yoy": {
+        "thresholds": [
+            (-3.0, "Critical", "Industrial production down {val:.1f}% YoY — severe contraction. Assess supply chain disruptions, manufacturing sector support, trade policy impacts."),
+            (-1.0, "High", "Industrial production falling {val:.1f}% YoY. Manufacturing sector weakening — review sector-specific support and trade conditions."),
+            (0.0, "Medium", "Industrial production flat/declining at {val:.1f}% YoY. Monitor factory orders and capacity utilization."),
+        ],
+        "area": "Labor",
+        "review": "monthly",
+        "direction": "lower",
+        "danger_zone": -3.0,
+    },
+    "unemployment": {
+        "thresholds": [
+            (7.0, "Critical", "Unemployment at {val:.1f}% — crisis level. Full employment support measures warranted."),
+            (5.5, "High", "Unemployment at {val:.1f}% — elevated. Expand job training and placement programs."),
+            (4.5, "Medium", "Unemployment at {val:.1f}% — rising above natural rate. Watch for continued deterioration."),
+        ],
+        "area": "Labor",
+        "review": "biweekly",
+        "direction": "higher",
+        "danger_zone": 7.0,
+    },
+    "inflation_yoy": {
+        "thresholds": [
+            (6.0, "Critical", "Inflation at {val:.1f}% YoY — price stability risk. Assess monetary tightening impact, cost-of-living support, supply-side measures."),
+            (4.0, "High", "Inflation at {val:.1f}% YoY — above target. Monitor Fed response, wage-price dynamics, and inflation expectations."),
+            (3.0, "Medium", "Inflation at {val:.1f}% YoY — above 2% target. Track core vs. headline divergence and persistence."),
+        ],
+        "area": "Monetary",
+        "review": "monthly",
+        "direction": "higher",
+        "danger_zone": 6.0,
+    },
+    "fedfunds": {
+        "thresholds": [
+            (5.5, "High", "Fed funds rate at {val:.2f}% — restrictive territory. Monitor for over-tightening risk, credit contraction, and housing impact."),
+            (4.0, "Medium", "Fed funds rate at {val:.2f}% — elevated. Track forward guidance and rate-sensitive sectors."),
+        ],
+        "area": "Monetary",
+        "review": "biweekly",
+        "direction": "higher",
+        "danger_zone": 5.5,
+    },
+}
+
+FLORIDA_ACTION_THRESHOLDS = [
+    {
+        "zone": "Stress",
+        "severity": "High",
+        "action": "Florida in Stress zone (score: {score:.0f}/100). Activate state-level contingency: housing market support, construction monitoring, tourism sector assessment. Coordinate with state agencies.",
+        "area": "State",
+        "review": "weekly",
+    },
+    {
+        "zone": "Watch",
+        "severity": "Medium",
+        "action": "Florida in Watch zone (score: {score:.0f}/100). Increase monitoring of state labor indicators, building permits, and initial claims. Prepare support plans.",
+        "area": "State",
+        "review": "biweekly",
+    },
+]
+
+PROBABILITY_ACTION_THRESHOLDS = [
+    {
+        "threshold": 0.40,
+        "severity": "Critical",
+        "action": "Recession probability at {prob:.1%} — above alert threshold. Activate full monitoring protocol: daily indicator reviews, cross-model validation, scenario planning.",
+        "area": "Overall",
+        "review": "daily",
+    },
+    {
+        "threshold": 0.25,
+        "severity": "High",
+        "action": "Recession probability at {prob:.1%} — elevated. Increase monitoring frequency, review portfolio hedges, prepare contingency communications.",
+        "area": "Overall",
+        "review": "weekly",
+    },
+    {
+        "threshold": 0.15,
+        "severity": "Medium",
+        "action": "Recession probability at {prob:.1%} — above baseline. Maintain heightened awareness and weekly check-ins.",
+        "area": "Overall",
+        "review": "biweekly",
+    },
 ]
 
 
@@ -220,7 +444,9 @@ def _probability_chart(df: pd.DataFrame, prob_col: str, title: str, threshold: f
             y=df[prob_col],
             mode="lines",
             name="Predicted recession probability",
-            line={"width": 2},
+            line={"width": 2.5, "color": "#1f77b4"},
+            fill="tozeroy",
+            fillcolor="rgba(31, 119, 180, 0.08)",
         )
     )
 
@@ -229,23 +455,27 @@ def _probability_chart(df: pd.DataFrame, prob_col: str, title: str, threshold: f
             go.Bar(
                 x=df["date"],
                 y=df["current_recession"] * 0.15,
-                name="Actual recession periods (scaled bars)",
-                opacity=0.22,
+                name="Actual recession periods",
+                marker_color="rgba(214, 39, 40, 0.18)",
+                marker_line_width=0,
             )
         )
 
     if threshold is not None:
         fig.add_hline(
             y=threshold,
-            line_dash="dash",
-            line_color="orange",
-            annotation_text=f"Alert threshold {threshold:.0%}",
+            line_dash="dot",
+            line_color="#ff6b35",
+            line_width=1.5,
+            annotation_text=f"Alert {threshold:.0%}",
             annotation_position="top left",
+            annotation_font_size=11,
+            annotation_font_color="#ff6b35",
         )
 
     fig.update_layout(
         yaxis_title="Probability",
-        xaxis_title="Date",
+        xaxis_title="",
         title=title,
         bargap=0,
     )
@@ -515,16 +745,18 @@ def _florida_chart(df: pd.DataFrame) -> go.Figure:
             y=df["florida_stress_index"],
             mode="lines",
             name="Florida Stress Index",
-            line={"width": 2},
+            line={"width": 2.5, "color": "#ff6b35"},
+            fill="tozeroy",
+            fillcolor="rgba(255, 107, 53, 0.06)",
         )
     )
-    fig.add_hrect(y0=0, y1=33, fillcolor="green", opacity=0.08, line_width=0, annotation_text="Calm")
-    fig.add_hrect(y0=33, y1=66, fillcolor="orange", opacity=0.08, line_width=0, annotation_text="Watch")
-    fig.add_hrect(y0=66, y1=100, fillcolor="red", opacity=0.08, line_width=0, annotation_text="Stress")
+    fig.add_hrect(y0=0, y1=33, fillcolor="#2ecc71", opacity=0.06, line_width=0, annotation_text="Calm")
+    fig.add_hrect(y0=33, y1=66, fillcolor="#f39c12", opacity=0.06, line_width=0, annotation_text="Watch")
+    fig.add_hrect(y0=66, y1=100, fillcolor="#e74c3c", opacity=0.06, line_width=0, annotation_text="Stress")
     fig.update_layout(
         title="Florida Stage 1 Stress Index (0-100)",
         yaxis_title="Stress Score",
-        xaxis_title="Date",
+        xaxis_title="",
     )
     fig.update_yaxes(range=[0, 100])
     return fig
@@ -532,9 +764,11 @@ def _florida_chart(df: pd.DataFrame) -> go.Figure:
 
 def _markov_chart(df: pd.DataFrame) -> go.Figure:
     fig = go.Figure()
+    regime_colors = {"calm": "#2ecc71", "watch": "#f39c12", "stress": "#e74c3c"}
     prob_cols = [c for c in df.columns if c.startswith("regime_prob_")]
     for col in prob_cols:
-        label = col.replace("regime_prob_", "").title()
+        regime_id = col.replace("regime_prob_", "")
+        label = regime_id.title()
         fig.add_trace(
             go.Scatter(
                 x=df["date"],
@@ -542,12 +776,14 @@ def _markov_chart(df: pd.DataFrame) -> go.Figure:
                 mode="lines",
                 stackgroup="one",
                 name=f"{label} probability",
+                line={"width": 0.5, "color": regime_colors.get(regime_id, "#999")},
+                fillcolor=regime_colors.get(regime_id, "#999"),
             )
         )
     fig.update_layout(
         title="Markov Switching Regime Probabilities",
         yaxis_title="Probability",
-        xaxis_title="Date",
+        xaxis_title="",
     )
     fig.update_yaxes(range=[0, 1])
     return fig
@@ -571,7 +807,7 @@ def _bayesian_band_chart(df: pd.DataFrame) -> go.Figure:
             y=df["bayesian_dynamic_prob_lower"],
             mode="lines",
             fill="tonexty",
-            fillcolor="rgba(31, 119, 180, 0.20)",
+            fillcolor="rgba(31, 119, 180, 0.12)",
             line={"width": 0},
             name="Uncertainty band",
         )
@@ -581,14 +817,14 @@ def _bayesian_band_chart(df: pd.DataFrame) -> go.Figure:
             x=df["date"],
             y=df["bayesian_dynamic_prob"],
             mode="lines",
-            line={"width": 2},
+            line={"width": 2.5, "color": "#1f77b4"},
             name="Bayesian dynamic probability",
         )
     )
     fig.update_layout(
         title="Bayesian Dynamic Model: Probability with Uncertainty Band",
         yaxis_title="Probability",
-        xaxis_title="Date",
+        xaxis_title="",
     )
     fig.update_yaxes(range=[0, 1])
     return fig
@@ -1308,11 +1544,469 @@ def _florida_vulnerabilities(florida_index_df: pd.DataFrame) -> tuple[list[str],
 
 
 # ---------------------------------------------------------------------------
+# Action Center helper functions
+# ---------------------------------------------------------------------------
+
+
+def _generate_action_items(
+    snapshot_df: pd.DataFrame,
+    latest_prob: float,
+    florida_latest: dict | None,
+) -> list[dict]:
+    """Check all indicators against thresholds, return severity-sorted action list."""
+    items: list[dict] = []
+    if snapshot_df.empty:
+        return items
+
+    latest = snapshot_df.sort_values("date").iloc[-1]
+
+    # Per-indicator thresholds
+    for indicator, cfg in INDICATOR_THRESHOLDS.items():
+        if indicator not in latest.index or pd.isna(latest[indicator]):
+            continue
+        val = float(latest[indicator])
+        direction = cfg["direction"]
+
+        for level_val, severity, template in cfg["thresholds"]:
+            triggered = (val > level_val) if direction == "higher" else (val < level_val)
+            if triggered:
+                items.append({
+                    "severity": severity,
+                    "area": cfg["area"],
+                    "indicator": indicator,
+                    "action": template.format(val=val),
+                    "data_value": val,
+                    "data_label": f"{_feature_label(indicator)}: {val:.2f}",
+                    "review": cfg["review"],
+                })
+                break  # Only the worst matching threshold
+
+    # Florida stress zone
+    if florida_latest:
+        fl_zone = florida_latest.get("florida_stress_zone", "Calm")
+        fl_score = float(florida_latest.get("florida_stress_index", 0))
+        for flt in FLORIDA_ACTION_THRESHOLDS:
+            if fl_zone == flt["zone"]:
+                items.append({
+                    "severity": flt["severity"],
+                    "area": flt["area"],
+                    "indicator": "florida_stress",
+                    "action": flt["action"].format(score=fl_score),
+                    "data_value": fl_score,
+                    "data_label": f"Florida Stress Index: {fl_score:.0f}/100 ({fl_zone})",
+                    "review": flt["review"],
+                })
+                break
+
+    # Recession probability level
+    for pt in PROBABILITY_ACTION_THRESHOLDS:
+        if latest_prob >= pt["threshold"]:
+            items.append({
+                "severity": pt["severity"],
+                "area": pt["area"],
+                "indicator": "recession_probability",
+                "action": pt["action"].format(prob=latest_prob),
+                "data_value": latest_prob,
+                "data_label": f"Recession Probability: {latest_prob:.1%}",
+                "review": pt["review"],
+            })
+            break
+
+    # Sort by severity
+    items.sort(key=lambda x: SEVERITY_ORDER.get(x["severity"], 99))
+    return items
+
+
+def _generate_what_changed(
+    snapshot_df: pd.DataFrame,
+    prob_history_df: pd.DataFrame,
+) -> dict:
+    """Compute month-over-month deltas, biggest movers, threshold crossings."""
+    result: dict = {
+        "prob_current": None,
+        "prob_previous": None,
+        "prob_delta": None,
+        "movers_up": [],
+        "movers_down": [],
+        "threshold_crossings": [],
+        "all_changes": [],
+    }
+
+    if prob_history_df.empty or len(prob_history_df) < 2:
+        return result
+
+    sorted_prob = prob_history_df.sort_values("date")
+    result["prob_current"] = float(sorted_prob.iloc[-1]["y_prob"])
+    result["prob_previous"] = float(sorted_prob.iloc[-2]["y_prob"])
+    result["prob_delta"] = result["prob_current"] - result["prob_previous"]
+
+    if snapshot_df.empty or len(snapshot_df) < 2:
+        return result
+
+    sorted_snap = snapshot_df.sort_values("date")
+    latest = sorted_snap.iloc[-1]
+    previous = sorted_snap.iloc[-2]
+
+    feature_cols = [
+        c for c in snapshot_df.columns
+        if c not in {"date", "target_recession_next_horizon", "current_recession"}
+    ]
+
+    changes = []
+    for col in feature_cols:
+        if col not in latest.index or pd.isna(latest[col]) or pd.isna(previous[col]):
+            continue
+        curr_val = float(latest[col])
+        prev_val = float(previous[col])
+        delta = curr_val - prev_val
+        if abs(delta) < 1e-10:
+            continue
+        changes.append({
+            "indicator": col,
+            "label": _feature_label(col),
+            "current": curr_val,
+            "previous": prev_val,
+            "delta": delta,
+            "pct_change": (delta / abs(prev_val) * 100) if abs(prev_val) > 1e-10 else 0.0,
+        })
+
+    changes.sort(key=lambda x: abs(x["delta"]), reverse=True)
+    result["all_changes"] = changes
+
+    # Top 5 movers up and down
+    movers_up = sorted([c for c in changes if c["delta"] > 0], key=lambda x: x["delta"], reverse=True)[:5]
+    movers_down = sorted([c for c in changes if c["delta"] < 0], key=lambda x: x["delta"])[:5]
+    result["movers_up"] = movers_up
+    result["movers_down"] = movers_down
+
+    # Threshold crossings: indicators that crossed a threshold boundary this month
+    for indicator, cfg in INDICATOR_THRESHOLDS.items():
+        if indicator not in latest.index or pd.isna(latest[indicator]) or pd.isna(previous[indicator]):
+            continue
+        curr_val = float(latest[indicator])
+        prev_val = float(previous[indicator])
+        direction = cfg["direction"]
+
+        for level_val, severity, _ in cfg["thresholds"]:
+            if direction == "higher":
+                crossed_now = curr_val > level_val
+                crossed_before = prev_val > level_val
+            else:
+                crossed_now = curr_val < level_val
+                crossed_before = prev_val < level_val
+
+            if crossed_now and not crossed_before:
+                result["threshold_crossings"].append({
+                    "indicator": indicator,
+                    "label": _feature_label(indicator),
+                    "severity": severity,
+                    "direction": "worsened into" if crossed_now else "improved out of",
+                    "threshold_value": level_val,
+                    "current": curr_val,
+                    "previous": prev_val,
+                })
+                break
+            elif crossed_before and not crossed_now:
+                result["threshold_crossings"].append({
+                    "indicator": indicator,
+                    "label": _feature_label(indicator),
+                    "severity": severity,
+                    "direction": "improved out of",
+                    "threshold_value": level_val,
+                    "current": curr_val,
+                    "previous": prev_val,
+                })
+                break
+
+    return result
+
+
+def _generate_indicator_heatmap_data(
+    snapshot_df: pd.DataFrame,
+) -> list[dict]:
+    """Distance-to-danger, direction, historical percentile per indicator."""
+    if snapshot_df.empty or len(snapshot_df) < 2:
+        return []
+
+    sorted_snap = snapshot_df.sort_values("date")
+    latest = sorted_snap.iloc[-1]
+    previous = sorted_snap.iloc[-2]
+
+    rows: list[dict] = []
+    for indicator, cfg in INDICATOR_THRESHOLDS.items():
+        if indicator not in latest.index or pd.isna(latest[indicator]):
+            continue
+        val = float(latest[indicator])
+        prev_val = float(previous[indicator]) if not pd.isna(previous[indicator]) else val
+        danger = cfg["danger_zone"]
+        direction = cfg["direction"]
+
+        # Distance to danger zone (0% = at danger, 100% = maximally safe)
+        if direction == "higher":
+            # Higher is worse: danger when val > danger_zone
+            distance_abs = danger - val
+            distance_pct = max(0.0, min(100.0, (distance_abs / abs(danger) * 100) if danger != 0 else 100.0))
+            crossed = val >= danger
+        else:
+            # Lower is worse: danger when val < danger_zone
+            distance_abs = val - danger
+            distance_pct = max(0.0, min(100.0, (distance_abs / abs(danger) * 100) if danger != 0 else 100.0))
+            crossed = val <= danger
+
+        # Direction: improving or worsening
+        delta = val - prev_val
+        if direction == "higher":
+            improving = delta < 0
+        else:
+            improving = delta > 0
+
+        # Historical percentile
+        col_data = sorted_snap[indicator].dropna()
+        if len(col_data) > 0:
+            percentile = float((col_data < val).sum() / len(col_data) * 100)
+        else:
+            percentile = 50.0
+
+        # Color zone
+        if crossed:
+            color = "red"
+            zone_label = "Crossed"
+        elif distance_pct < 15:
+            color = "orange"
+            zone_label = "Near"
+        elif distance_pct < 40:
+            color = "gold"
+            zone_label = "Approaching"
+        else:
+            color = "green"
+            zone_label = "Safe"
+
+        rows.append({
+            "indicator": indicator,
+            "label": _feature_label(indicator),
+            "current_value": val,
+            "danger_zone": danger,
+            "distance_pct": distance_pct,
+            "crossed": crossed,
+            "direction_text": "Improving" if improving else "Worsening",
+            "direction_symbol": "\u2193" if improving else "\u2191" if not improving and abs(delta) > 1e-10 else "\u2194",
+            "percentile": percentile,
+            "color": color,
+            "zone_label": zone_label,
+            "area": cfg["area"],
+        })
+
+    # Sort by distance (closest to danger first)
+    rows.sort(key=lambda x: x["distance_pct"])
+    return rows
+
+
+def _compute_whatif_probability(
+    current_prob: float,
+    importance_df: pd.DataFrame,
+    snapshot_df: pd.DataFrame,
+    scenario: dict[str, float],
+) -> tuple[float, list[str]]:
+    """Delta-logit scenario estimation using logistic coefficients.
+
+    new_prob = sigmoid(logit(current_prob) + sum(coef * (z_new - z_current)))
+    """
+    explanations: list[str] = []
+
+    if current_prob <= 0.001:
+        current_prob = 0.001
+    if current_prob >= 0.999:
+        current_prob = 0.999
+
+    current_logit = float(logit(current_prob))
+
+    logistic_imp = importance_df[importance_df["model"] == "logistic"]
+    if logistic_imp.empty:
+        return current_prob, ["No logistic model coefficients available."]
+    coef_map = logistic_imp.set_index("feature")["importance"].to_dict()
+
+    feature_cols = [
+        c for c in snapshot_df.columns
+        if c not in {"date", "target_recession_next_horizon", "current_recession"}
+    ]
+
+    # Compute mean and std from full training dataset for standardization
+    stats = {}
+    for col in feature_cols:
+        col_data = snapshot_df[col].dropna()
+        if len(col_data) > 1:
+            stats[col] = {"mean": float(col_data.mean()), "std": float(col_data.std())}
+
+    sorted_snap = snapshot_df.sort_values("date")
+    latest = sorted_snap.iloc[-1]
+
+    logit_delta = 0.0
+    for feature, new_val in scenario.items():
+        if feature not in coef_map or feature not in stats:
+            continue
+        coef = coef_map[feature]
+        mean = stats[feature]["mean"]
+        std = stats[feature]["std"]
+        if std < 1e-10:
+            continue
+
+        current_val = float(latest[feature]) if feature in latest.index and not pd.isna(latest[feature]) else mean
+        z_current = (current_val - mean) / std
+        z_new = (new_val - mean) / std
+        delta_z = z_new - z_current
+        contribution = coef * delta_z
+        logit_delta += contribution
+        explanations.append(
+            f"{_feature_label(feature)}: {current_val:.2f} -> {new_val:.2f} "
+            f"(coef={coef:.4f}, delta-z={delta_z:+.2f}, logit contribution={contribution:+.4f})"
+        )
+
+    new_logit = current_logit + logit_delta
+    new_prob = float(sigmoid(new_logit))
+    return new_prob, explanations
+
+
+def _generate_briefing_text(
+    latest_prob: float,
+    latest_date: str,
+    status: str,
+    change_6m: float,
+    action_items: list[dict],
+    what_changed: dict,
+    snapshot_df: pd.DataFrame,
+    markov_summary: dict | None,
+    florida_latest: dict | None,
+    alert_threshold: float,
+) -> str:
+    """Assemble all data into downloadable Markdown briefing."""
+    now_str = datetime.date.today().isoformat()
+    lines: list[str] = []
+
+    lines.append(f"# Recession Risk Briefing — {now_str}")
+    lines.append("")
+    lines.append(f"**Generated:** {now_str}")
+    lines.append(f"**Data as of:** {latest_date}")
+    lines.append(f"**Risk Level:** {status}")
+    lines.append(f"**Recession Probability:** {latest_prob:.1%}")
+    lines.append(f"**6-Month Change:** {change_6m:+.1%}")
+    lines.append(f"**Alert Threshold:** {alert_threshold:.0%}")
+    lines.append("")
+
+    # Regime and Florida
+    if markov_summary:
+        regime = markov_summary.get("latest_regime", "unknown")
+        lines.append(f"**Markov Regime:** {regime}")
+    if florida_latest:
+        fl_zone = florida_latest.get("florida_stress_zone", "Unknown")
+        fl_score = florida_latest.get("florida_stress_index", 0)
+        lines.append(f"**Florida Stress:** {fl_zone} ({fl_score:.0f}/100)")
+    lines.append("")
+
+    # Action Items
+    lines.append("## Priority Action Items")
+    lines.append("")
+    if action_items:
+        for item in action_items:
+            lines.append(f"- **[{item['severity']}]** ({item['area']}) {item['action']} *(Review: {item['review']})*")
+    else:
+        lines.append("- No action items triggered — all indicators within normal ranges.")
+    lines.append("")
+
+    # What Changed
+    lines.append("## What Changed This Month")
+    lines.append("")
+    if what_changed.get("prob_delta") is not None:
+        arrow = "\u2191" if what_changed["prob_delta"] > 0 else "\u2193" if what_changed["prob_delta"] < 0 else "\u2194"
+        lines.append(f"- Probability: {what_changed['prob_previous']:.1%} -> {what_changed['prob_current']:.1%} ({what_changed['prob_delta']:+.1%}) {arrow}")
+    if what_changed.get("movers_up"):
+        lines.append("")
+        lines.append("**Top movers up:**")
+        for m in what_changed["movers_up"]:
+            lines.append(f"- {m['label']}: {m['previous']:.2f} -> {m['current']:.2f} ({m['delta']:+.2f})")
+    if what_changed.get("movers_down"):
+        lines.append("")
+        lines.append("**Top movers down:**")
+        for m in what_changed["movers_down"]:
+            lines.append(f"- {m['label']}: {m['previous']:.2f} -> {m['current']:.2f} ({m['delta']:+.2f})")
+    if what_changed.get("threshold_crossings"):
+        lines.append("")
+        lines.append("**Threshold crossings:**")
+        for tc in what_changed["threshold_crossings"]:
+            lines.append(f"- {tc['label']} {tc['direction']} {tc['severity']} zone ({tc['previous']:.2f} -> {tc['current']:.2f})")
+    lines.append("")
+
+    # Indicator Snapshot
+    lines.append("## Current Indicator Snapshot")
+    lines.append("")
+    if not snapshot_df.empty:
+        latest = snapshot_df.sort_values("date").iloc[-1]
+        feature_cols = [
+            c for c in snapshot_df.columns
+            if c not in {"date", "target_recession_next_horizon", "current_recession"}
+        ]
+        lines.append("| Indicator | Value |")
+        lines.append("|---|---|")
+        for col in feature_cols:
+            if col in latest.index and not pd.isna(latest[col]):
+                lines.append(f"| {_feature_label(col)} | {float(latest[col]):.4f} |")
+    lines.append("")
+
+    lines.append("---")
+    lines.append("*Generated by Recession Probability Lab — Action Center*")
+
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
 # Main dashboard
 # ---------------------------------------------------------------------------
 
 def main() -> None:
     st.set_page_config(page_title="Recession Probability Lab", layout="wide")
+
+    # Modern CSS overrides
+    st.markdown(
+        """
+        <style>
+        /* Clean white background throughout */
+        .stApp { background-color: #ffffff; }
+        section[data-testid="stSidebar"] { background-color: #f5f7fa; }
+
+        /* Tighter, modern tab styling */
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 2px;
+            border-bottom: 2px solid #eaedf2;
+        }
+        .stTabs [data-baseweb="tab"] {
+            padding: 10px 20px;
+            font-weight: 500;
+            border-radius: 8px 8px 0 0;
+        }
+        .stTabs [aria-selected="true"] {
+            background-color: #f5f7fa;
+            border-bottom: 2px solid #1f77b4;
+        }
+
+        /* Metric cards */
+        [data-testid="stMetric"] {
+            background-color: #f5f7fa;
+            padding: 14px 18px;
+            border-radius: 10px;
+            border: 1px solid #eaedf2;
+        }
+        [data-testid="stMetricLabel"] { font-size: 0.85rem; color: #475467; }
+        [data-testid="stMetricValue"] { font-weight: 600; }
+
+        /* Expander styling */
+        .streamlit-expanderHeader { font-weight: 500; }
+
+        /* Dataframe styling */
+        .stDataFrame { border-radius: 8px; border: 1px solid #eaedf2; }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
     st.title("Recession Probability Lab")
     st.caption("Insight-driven recession monitor — US national and Florida state analysis")
 
@@ -1389,12 +2083,13 @@ def main() -> None:
     # -----------------------------------------------------------------------
     # TABS
     # -----------------------------------------------------------------------
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
         "Executive Summary",
         "Recessions: Then vs Now",
         "Florida Deep Dive",
         "How the Models Work",
         "Technical Details",
+        "Action Center",
     ])
 
     # ===================================================================
@@ -2080,6 +2775,306 @@ def main() -> None:
             st.write(row["headline"])
             st.write(row["top_drivers"])
             st.caption("Driver text is heuristic: useful for learning, not strict causality.")
+
+    # ===================================================================
+    # TAB 6: ACTION CENTER
+    # ===================================================================
+    with tab6:
+        st.caption("Prioritized actions, change tracking, early warnings, scenario exploration, and exportable briefings.")
+
+        # --- Section 1: Priority Action Items ---
+        st.subheader("Priority Action Items")
+        action_items = _generate_action_items(snapshot_df, latest_prob, florida_latest)
+
+        if action_items:
+            # Summary bar
+            counts = {"Critical": 0, "High": 0, "Medium": 0, "Low": 0}
+            for item in action_items:
+                counts[item["severity"]] = counts.get(item["severity"], 0) + 1
+            badge_parts = []
+            for sev in ["Critical", "High", "Medium", "Low"]:
+                if counts[sev] > 0:
+                    color = SEVERITY_COLORS[sev]
+                    badge_parts.append(
+                        f'<span style="background-color:{color}; color:white; padding:4px 12px; '
+                        f'border-radius:12px; font-weight:bold; margin-right:8px;">'
+                        f'{sev}: {counts[sev]}</span>'
+                    )
+            st.markdown(" ".join(badge_parts), unsafe_allow_html=True)
+            st.markdown("")
+
+            # Action item cards
+            for item in action_items:
+                sev_color = SEVERITY_COLORS[item["severity"]]
+                st.markdown(
+                    f'<div style="border-left: 5px solid {sev_color}; padding: 10px 16px; '
+                    f'margin-bottom: 8px; background-color: #f8f9fa; border-radius: 0 6px 6px 0;">'
+                    f'<span style="background-color:{sev_color}; color:white; padding:2px 8px; '
+                    f'border-radius:8px; font-size:0.85em; font-weight:bold;">{item["severity"]}</span> '
+                    f'<span style="background-color:#e0e0e0; padding:2px 8px; border-radius:8px; '
+                    f'font-size:0.85em; margin-left:4px;">{item["area"]}</span> '
+                    f'<span style="background-color:#d0e8ff; padding:2px 8px; border-radius:8px; '
+                    f'font-size:0.85em; margin-left:4px;">Review: {item["review"]}</span>'
+                    f'<br/><span style="font-size:1.0em; margin-top:6px; display:inline-block;">'
+                    f'{item["action"]}</span>'
+                    f'<br/><span style="font-size:0.85em; color:#666;">Data: {item["data_label"]}</span>'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
+        else:
+            st.success("No action items triggered — all indicators are within normal ranges.")
+
+        st.markdown("---")
+
+        # --- Section 2: What Changed This Month ---
+        st.subheader("What Changed This Month")
+        what_changed = _generate_what_changed(snapshot_df, prob_history_df)
+
+        if what_changed["prob_delta"] is not None:
+            delta = what_changed["prob_delta"]
+            arrow = "\u2191" if delta > 0 else "\u2193" if delta < 0 else "\u2194\ufe0f"
+            delta_color = "#d62728" if delta > 0 else "#2ca02c" if delta < 0 else "#666"
+            wc1, wc2, wc3 = st.columns(3)
+            wc1.metric("Previous Probability", f"{what_changed['prob_previous']:.1%}")
+            wc2.metric("Current Probability", f"{what_changed['prob_current']:.1%}")
+            wc3.markdown(
+                f'<div style="text-align:center; padding-top:14px;">'
+                f'<span style="font-size:2.5em; color:{delta_color};">{arrow}</span><br/>'
+                f'<span style="font-size:1.3em; color:{delta_color}; font-weight:bold;">{delta:+.2%}</span>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+
+            # Top movers
+            col_up, col_down = st.columns(2)
+            with col_up:
+                st.markdown("**Top Movers \u2191 (Increased)**")
+                if what_changed["movers_up"]:
+                    for m in what_changed["movers_up"]:
+                        st.markdown(f"- **{m['label']}**: {m['previous']:.2f} \u2192 {m['current']:.2f} ({m['delta']:+.2f})")
+                else:
+                    st.caption("No significant increases this month.")
+            with col_down:
+                st.markdown("**Top Movers \u2193 (Decreased)**")
+                if what_changed["movers_down"]:
+                    for m in what_changed["movers_down"]:
+                        st.markdown(f"- **{m['label']}**: {m['previous']:.2f} \u2192 {m['current']:.2f} ({m['delta']:+.2f})")
+                else:
+                    st.caption("No significant decreases this month.")
+
+            # Threshold crossings
+            if what_changed["threshold_crossings"]:
+                st.markdown("**Threshold Crossings This Month**")
+                for tc in what_changed["threshold_crossings"]:
+                    sev_color = SEVERITY_COLORS.get(tc["severity"], "#666")
+                    st.markdown(
+                        f'- <span style="color:{sev_color}; font-weight:bold;">[{tc["severity"]}]</span> '
+                        f'**{tc["label"]}** {tc["direction"]} zone '
+                        f'({tc["previous"]:.2f} \u2192 {tc["current"]:.2f})',
+                        unsafe_allow_html=True,
+                    )
+
+            # Expandable full table
+            with st.expander("Full indicator change table"):
+                if what_changed["all_changes"]:
+                    change_df = pd.DataFrame(what_changed["all_changes"])[
+                        ["label", "previous", "current", "delta", "pct_change"]
+                    ].rename(columns={
+                        "label": "Indicator",
+                        "previous": "Previous",
+                        "current": "Current",
+                        "delta": "Change",
+                        "pct_change": "% Change",
+                    })
+                    st.dataframe(change_df, use_container_width=True, hide_index=True)
+                else:
+                    st.caption("No changes to display.")
+        else:
+            st.info("Insufficient data to compute month-over-month changes. Need at least 2 months of history.")
+
+        st.markdown("---")
+
+        # --- Section 3: Early Warning Dashboard ---
+        st.subheader("Early Warning Dashboard")
+        st.caption("Distance of each indicator to its danger zone. Sorted by proximity — closest to danger first.")
+
+        heatmap_data = _generate_indicator_heatmap_data(snapshot_df)
+        if heatmap_data:
+            labels = [r["label"] for r in heatmap_data]
+            distances = [r["distance_pct"] for r in heatmap_data]
+            bar_colors = [
+                {"red": "#d62728", "orange": "#ff7f0e", "gold": "#f0c929", "green": "#2ca02c"}[r["color"]]
+                for r in heatmap_data
+            ]
+            hover_texts = [
+                f"Current: {r['current_value']:.2f}<br>"
+                f"Danger zone: {r['danger_zone']:.2f}<br>"
+                f"Direction: {r['direction_text']} {r['direction_symbol']}<br>"
+                f"Hist. percentile: {r['percentile']:.0f}%<br>"
+                f"Area: {r['area']}"
+                for r in heatmap_data
+            ]
+            annotation_texts = [
+                f"{r['current_value']:.2f} {r['direction_symbol']} | {r['zone_label']} | P{r['percentile']:.0f}"
+                for r in heatmap_data
+            ]
+
+            fig_ew = go.Figure()
+            fig_ew.add_trace(
+                go.Bar(
+                    y=labels[::-1],
+                    x=distances[::-1],
+                    orientation="h",
+                    marker_color=bar_colors[::-1],
+                    text=annotation_texts[::-1],
+                    textposition="outside",
+                    hovertext=hover_texts[::-1],
+                    hoverinfo="text",
+                )
+            )
+            fig_ew.update_layout(
+                title="Distance to Danger Zone (%)",
+                xaxis_title="Distance to Danger Zone (%) — lower = closer to danger",
+                yaxis_title="",
+                height=max(400, 45 * len(heatmap_data)),
+                xaxis={"range": [0, max(120, max(distances) + 20)]},
+            )
+            st.plotly_chart(fig_ew, use_container_width=True)
+
+            # Legend
+            st.markdown(
+                '<span style="color:#d62728;">\u25a0</span> Crossed danger zone &nbsp;&nbsp;'
+                '<span style="color:#ff7f0e;">\u25a0</span> Near (<15%) &nbsp;&nbsp;'
+                '<span style="color:#f0c929;">\u25a0</span> Approaching (15-40%) &nbsp;&nbsp;'
+                '<span style="color:#2ca02c;">\u25a0</span> Safe (>40%)',
+                unsafe_allow_html=True,
+            )
+        else:
+            st.info("Insufficient data to generate early warning chart.")
+
+        st.markdown("---")
+
+        # --- Section 4: What-If Scenario Explorer ---
+        st.subheader("What-If Scenario Explorer")
+        st.caption("Adjust key indicators to see how recession probability would change. Uses logistic regression coefficients with delta-logit estimation.")
+
+        sorted_snap_latest = snapshot_df.sort_values("date").iloc[-1] if not snapshot_df.empty else None
+
+        whatif_cols = st.columns(4)
+        scenario_inputs: dict[str, float] = {}
+
+        # Unemployment slider
+        if sorted_snap_latest is not None and "unemployment" in sorted_snap_latest.index and not pd.isna(sorted_snap_latest["unemployment"]):
+            current_unemp = float(sorted_snap_latest["unemployment"])
+            with whatif_cols[0]:
+                scenario_inputs["unemployment"] = st.slider(
+                    "Unemployment Rate (%)",
+                    min_value=2.0, max_value=15.0,
+                    value=current_unemp,
+                    step=0.1,
+                    key="whatif_unemployment",
+                )
+
+        # Credit Spread slider
+        if sorted_snap_latest is not None and "credit_spread" in sorted_snap_latest.index and not pd.isna(sorted_snap_latest["credit_spread"]):
+            current_cs = float(sorted_snap_latest["credit_spread"])
+            with whatif_cols[1]:
+                scenario_inputs["credit_spread"] = st.slider(
+                    "Credit Spread (%)",
+                    min_value=0.5, max_value=8.0,
+                    value=current_cs,
+                    step=0.1,
+                    key="whatif_credit_spread",
+                )
+
+        # Yield Spread slider
+        if sorted_snap_latest is not None and "yield_spread" in sorted_snap_latest.index and not pd.isna(sorted_snap_latest["yield_spread"]):
+            current_ys = float(sorted_snap_latest["yield_spread"])
+            with whatif_cols[2]:
+                scenario_inputs["yield_spread"] = st.slider(
+                    "Yield Spread (%)",
+                    min_value=-3.0, max_value=4.0,
+                    value=current_ys,
+                    step=0.1,
+                    key="whatif_yield_spread",
+                )
+
+        # VIX slider
+        if sorted_snap_latest is not None and "vix_level" in sorted_snap_latest.index and not pd.isna(sorted_snap_latest["vix_level"]):
+            current_vix = float(sorted_snap_latest["vix_level"])
+            with whatif_cols[3]:
+                scenario_inputs["vix_level"] = st.slider(
+                    "VIX Level",
+                    min_value=8.0, max_value=80.0,
+                    value=current_vix,
+                    step=0.5,
+                    key="whatif_vix",
+                )
+
+        if scenario_inputs:
+            scenario_prob, scenario_explanations = _compute_whatif_probability(
+                latest_prob, importance_df, snapshot_df, scenario_inputs,
+            )
+            prob_change = scenario_prob - latest_prob
+
+            sp1, sp2, sp3 = st.columns(3)
+            sp1.metric("Current Probability", f"{latest_prob:.1%}")
+            sp2.metric("Scenario Probability", f"{scenario_prob:.1%}")
+            change_color = "#d62728" if prob_change > 0 else "#2ca02c" if prob_change < 0 else "#666"
+            sp3.markdown(
+                f'<div style="text-align:center; padding-top:10px;">'
+                f'<span style="font-size:1.6em; color:{change_color}; font-weight:bold;">{prob_change:+.2%}</span><br/>'
+                f'<span style="font-size:0.9em; color:#666;">Change</span></div>',
+                unsafe_allow_html=True,
+            )
+
+            # Narrative
+            direction = "increase" if prob_change > 0 else "decrease" if prob_change < 0 else "remain unchanged"
+            st.markdown(
+                f"Under this scenario, recession probability would **{direction}** "
+                f"from {latest_prob:.1%} to {scenario_prob:.1%} ({prob_change:+.2%})."
+            )
+
+            with st.expander("Calculation details"):
+                for exp in scenario_explanations:
+                    st.markdown(f"- {exp}")
+                st.caption(
+                    "Approximation using logistic regression coefficients with delta-logit approach. "
+                    "Actual model (ensemble/boosted trees) may produce different results. "
+                    "Standardization uses training data mean/std."
+                )
+        else:
+            st.info("Indicator data not available for scenario sliders.")
+
+        st.markdown("---")
+
+        # --- Section 5: Export Briefing ---
+        st.subheader("Export Briefing")
+        st.caption("Download a Markdown briefing summarizing the current risk assessment, action items, and changes.")
+
+        briefing_text = _generate_briefing_text(
+            latest_prob=latest_prob,
+            latest_date=latest_date,
+            status=status,
+            change_6m=change_6m,
+            action_items=action_items,
+            what_changed=what_changed,
+            snapshot_df=snapshot_df,
+            markov_summary=markov_summary,
+            florida_latest=florida_latest,
+            alert_threshold=alert_threshold,
+        )
+
+        with st.expander("Preview briefing"):
+            st.markdown(briefing_text)
+
+        file_date = datetime.date.today().strftime("%Y-%m-%d")
+        st.download_button(
+            label="Download Briefing (.md)",
+            data=briefing_text,
+            file_name=f"recession_briefing_{file_date}.md",
+            mime="text/markdown",
+        )
 
 
 if __name__ == "__main__":
