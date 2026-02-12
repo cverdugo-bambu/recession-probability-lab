@@ -522,6 +522,37 @@ def _sector_employment_chart(df: pd.DataFrame) -> go.Figure | None:
     return fig
 
 
+def _sector_employment_level_chart(df: pd.DataFrame) -> go.Figure | None:
+    """Absolute employment levels (thousands) for 5 sectors."""
+    sector_cols = {
+        "info_sector_emp": ("Information", "#e74c3c"),
+        "prof_business_emp": ("Prof. & Business Svc.", "#ff6b35"),
+        "computer_systems_emp": ("Computer Systems Design", "#9b59b6"),
+        "healthcare_emp": ("Education & Health", "#2ecc71"),
+        "government_emp": ("Government", "#3498db"),
+    }
+    available = {k: v for k, v in sector_cols.items() if k in df.columns}
+    if not available:
+        return None
+
+    fig = go.Figure()
+    for col, (label, color) in available.items():
+        s = df.set_index("date")[col].dropna()
+        fig.add_trace(go.Scatter(
+            x=s.index, y=s.values, name=label,
+            line=dict(width=2, color=color),
+        ))
+    _add_recession_shading(fig)
+    fig.update_layout(
+        title="Employment Levels by Sector (thousands)",
+        yaxis_title="Employees (thousands)",
+        height=440,
+        xaxis_range=[df["date"].min(), df["date"].max()],
+        legend=dict(orientation="h", y=-0.15),
+    )
+    return fig
+
+
 def _tech_focus_indexed_chart(df: pd.DataFrame, base_date: str) -> go.Figure | None:
     """Indexed (base=100) employment for tech-adjacent sectors from a chosen base date."""
     cols = {
@@ -2740,6 +2771,7 @@ def main() -> None:
                 sector_cols = {
                     "info_sector_emp": "Information",
                     "prof_business_emp": "Prof. & Business Svc.",
+                    "computer_systems_emp": "Computer Systems Design",
                     "healthcare_emp": "Education & Health",
                     "government_emp": "Government",
                 }
@@ -2756,6 +2788,32 @@ def main() -> None:
                         "Latest YoY Growth Rates",
                         " &nbsp;|&nbsp; ".join(parts),
                         "#ff6b35",
+                    ), unsafe_allow_html=True)
+
+            # Absolute employment levels chart
+            fig_sector_level = _sector_employment_level_chart(labor_df)
+            if fig_sector_level:
+                st.plotly_chart(fig_sector_level, use_container_width=True)
+
+                # Latest headcount card
+                level_cols = {
+                    "info_sector_emp": "Information",
+                    "prof_business_emp": "Prof. & Business Svc.",
+                    "computer_systems_emp": "Computer Systems Design",
+                    "healthcare_emp": "Education & Health",
+                    "government_emp": "Government",
+                }
+                level_parts = []
+                for col, label in level_cols.items():
+                    if col in labor_df.columns:
+                        s = labor_df.set_index("date")[col].dropna()
+                        if not s.empty:
+                            level_parts.append(f"<b>{label}:</b> {s.iloc[-1]:,.0f}k")
+                if level_parts:
+                    st.markdown(_labor_insight_card(
+                        "Latest Employment Levels (thousands)",
+                        " &nbsp;|&nbsp; ".join(level_parts),
+                        "#3498db",
                     ), unsafe_allow_html=True)
 
             st.markdown("---")
