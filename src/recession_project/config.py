@@ -46,8 +46,8 @@ FLORIDA_SERIES_CODES = {
 
 LABOR_DEEP_DIVE_SERIES = {
     "u6_rate": "U6RATE",                     # Broad unemployment (U-6)
-    "info_sector_emp": "CES5000000001",      # Information sector jobs
-    "prof_business_emp": "CES6000000001",    # Professional & Business Services
+    "info_sector_emp": "CEU5000000001",      # Information sector jobs
+    "prof_business_emp": "CEU6000000001",    # Professional & Business Services
     "computer_systems_emp": "CES6561000001", # Computer Systems Design
     "healthcare_emp": "CES6562000001",       # Education & Health Services
     "government_emp": "USGOVT",              # Government employment

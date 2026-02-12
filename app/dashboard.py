@@ -19,7 +19,7 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from recession_project.config import DEFAULT_ALERT_THRESHOLD, FEATURE_DESCRIPTIONS, FEATURE_LABELS, LABOR_DEEP_DIVE_SERIES
+from recession_project.config import DEFAULT_ALERT_THRESHOLD, FEATURE_DESCRIPTIONS, FEATURE_LABELS
 
 ARTIFACT_DIR = ROOT / "artifacts"
 
@@ -433,47 +433,16 @@ def _load_artifacts() -> tuple[
 
 
 # ---------------------------------------------------------------------------
-# Labor Market Deep Dive — data fetching & chart helpers
+# Labor Market Deep Dive — chart helpers
 # ---------------------------------------------------------------------------
 
-_FRED_CSV_URL = "https://fred.stlouisfed.org/graph/fredgraph.csv"
-
-
-def _fetch_fred_series(code: str, start: datetime.date, end: datetime.date) -> pd.Series | None:
-    """Fetch a single FRED series via its public CSV endpoint (no API key needed)."""
-    import urllib.request
-    url = f"{_FRED_CSV_URL}?id={code}&cosd={start}&coed={end}"
-    try:
-        with urllib.request.urlopen(url, timeout=30) as resp:
-            raw = resp.read().decode("utf-8")
-        from io import StringIO
-        s = pd.read_csv(StringIO(raw), parse_dates=["DATE"], index_col="DATE", na_values=".")[code]
-        return s
-    except Exception:
+def _load_labor_deep_dive() -> pd.DataFrame | None:
+    """Load labor deep dive CSV artifact. Returns None if not available."""
+    path = ARTIFACT_DIR / "labor_deep_dive.csv"
+    if not path.exists():
         return None
-
-
-@st.cache_data(ttl=3600 * 6, show_spinner="Fetching labor market data from FRED…")
-def _fetch_labor_deep_dive_data() -> pd.DataFrame | None:
-    """Fetch 11 FRED series for the Labor Market Deep Dive tab.
-
-    Returns a monthly DataFrame indexed by date, or None if all fetches fail.
-    """
-    end = datetime.date.today()
-    start = datetime.date(2000, 1, 1)
-    frames: dict[str, pd.Series] = {}
-    for key, code in LABOR_DEEP_DIVE_SERIES.items():
-        s = _fetch_fred_series(code, start, end)
-        if s is not None:
-            # Resample to month-end to align different frequencies
-            s = s.resample("ME").last()
-            frames[key] = s
-    if not frames:
-        return None
-    df = pd.DataFrame(frames)
-    df.index.name = "date"
-    df = df.reset_index()
-    return df
+    df = pd.read_csv(path, parse_dates=["date"])
+    return df if not df.empty else None
 
 
 def _labor_insight_card(title: str, body: str, accent_color: str = "#1f77b4") -> str:
@@ -494,17 +463,9 @@ def _add_recession_shading(fig: go.Figure) -> None:
 
 def _headline_vs_reality_chart(df: pd.DataFrame) -> go.Figure | None:
     """U-3 vs U-6 unemployment overlay with spread subplot."""
-    if "u6_rate" not in df.columns:
+    if "u6_rate" not in df.columns or "u3_rate" not in df.columns:
         return None
-    # Need U-3 from the snapshot or fetch separately — use UNRATE via same mechanism
-    # U-3 is already 'unemployment' in snapshot, but we fetch it here for alignment
-    u3 = _fetch_fred_series("UNRATE", df["date"].min().date(), df["date"].max().date())
-    if u3 is None:
-        return None
-    u3 = u3.resample("ME").last()
-    u3_df = u3.reset_index()
-    u3_df.columns = ["date", "u3_rate"]
-    merged = pd.merge(df[["date", "u6_rate"]].dropna(), u3_df, on="date", how="inner")
+    merged = df[["date", "u6_rate", "u3_rate"]].dropna()
     if merged.empty:
         return None
 
@@ -2700,12 +2661,11 @@ def main() -> None:
             "especially in tech and data fields."
         )
 
-        labor_df = _fetch_labor_deep_dive_data()
+        labor_df = _load_labor_deep_dive()
 
         if labor_df is None:
             st.warning(
-                "Could not fetch labor market data from FRED. "
-                "This may be a temporary network issue — try refreshing in a few minutes."
+                "Labor market data not available. Run `python run_pipeline.py` to generate it."
             )
         else:
             # -----------------------------------------------------------
@@ -2722,12 +2682,11 @@ def main() -> None:
             if "u6_rate" in labor_df.columns:
                 latest = labor_df.dropna(subset=["u6_rate"]).iloc[-1] if not labor_df.dropna(subset=["u6_rate"]).empty else None
                 if latest is not None:
-                    _u3_s = _fetch_fred_series(
-                        "UNRATE",
-                        (latest["date"] - pd.DateOffset(months=2)).date(),
-                        latest["date"].date(),
-                    )
-                    u3_latest = _u3_s.iloc[-1] if _u3_s is not None and not _u3_s.empty else None
+                    u3_latest = latest.get("u3_rate") if "u3_rate" in labor_df.columns else None
+                    if pd.notna(u3_latest):
+                        u3_latest = float(u3_latest)
+                    else:
+                        u3_latest = None
                     mc1, mc2, mc3 = st.columns(3)
                     if u3_latest is not None:
                         mc1.metric("U-3 (Official)", f"{u3_latest:.1f}%")

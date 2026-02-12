@@ -11,6 +11,7 @@ from .config import (
     ARTIFACT_DIR,
     DEFAULT_ALERT_THRESHOLD,
     HORIZON_MONTHS,
+    LABOR_DEEP_DIVE_SERIES,
     MIN_DATE,
     MIN_TRAIN_MONTHS_WALKFORWARD,
     TEST_MONTHS,
@@ -141,4 +142,48 @@ def run_pipeline(
     with (ARTIFACT_DIR / "latest_nowcast.json").open("w", encoding="utf-8") as f:
         json.dump(latest_nowcast, f, indent=2)
 
+    # Labor Market Deep Dive data (display-only, not used by models)
+    _fetch_labor_deep_dive_csv()
+
     return metrics
+
+
+def _fetch_labor_deep_dive_csv() -> None:
+    """Fetch 11 FRED series for the Labor Market Deep Dive tab and save as CSV artifact."""
+    import urllib.request
+    from io import StringIO
+
+    FRED_CSV_URL = "https://fred.stlouisfed.org/graph/fredgraph.csv"
+    start = "2000-01-01"
+    end = datetime.utcnow().strftime("%Y-%m-%d")
+    frames: dict[str, pd.Series] = {}
+
+    for key, code in LABOR_DEEP_DIVE_SERIES.items():
+        url = f"{FRED_CSV_URL}?id={code}&cosd={start}&coed={end}"
+        try:
+            with urllib.request.urlopen(url, timeout=30) as resp:
+                raw = resp.read().decode("utf-8")
+            s = pd.read_csv(StringIO(raw), parse_dates=["observation_date"], index_col="observation_date", na_values=".")[code]
+            s = s.resample("ME").last()
+            frames[key] = s
+        except Exception as exc:
+            print(f"  [labor] Skipping {key} ({code}): {exc}")
+
+    if not frames:
+        print("  [labor] WARNING: could not fetch any series — skipping labor_deep_dive.csv")
+        return
+
+    # Also fetch U-3 (UNRATE) for the headline vs reality chart
+    try:
+        url = f"{FRED_CSV_URL}?id=UNRATE&cosd={start}&coed={end}"
+        with urllib.request.urlopen(url, timeout=30) as resp:
+            raw = resp.read().decode("utf-8")
+        u3 = pd.read_csv(StringIO(raw), parse_dates=["observation_date"], index_col="observation_date", na_values=".")["UNRATE"]
+        frames["u3_rate"] = u3.resample("ME").last()
+    except Exception as exc:
+        print(f"  [labor] Skipping u3_rate (UNRATE): {exc}")
+
+    df = pd.DataFrame(frames)
+    df.index.name = "date"
+    df.to_csv(ARTIFACT_DIR / "labor_deep_dive.csv", index=True)
+    print(f"  [labor] Saved labor_deep_dive.csv with {len(df)} rows, {len(frames)} series")
