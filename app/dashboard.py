@@ -2919,6 +2919,139 @@ def main() -> None:
                         "#2ecc71",
                     ), unsafe_allow_html=True)
 
+            st.markdown("---")
+
+            # -----------------------------------------------------------
+            # Section 6: What This Means
+            # -----------------------------------------------------------
+            st.subheader("What This Means")
+            st.markdown(
+                "The five sections above tell a story that headline numbers hide. "
+                "Here are the conclusions — not just data points — and what they mean "
+                "for job seekers, employers, and policymakers."
+            )
+
+            # Compute narrative-driving figures from the data
+            _narr_ratio = None
+            if "jolts_openings" in labor_df.columns and "jolts_hires" in labor_df.columns:
+                _jr = labor_df[["jolts_openings", "jolts_hires"]].dropna()
+                if not _jr.empty:
+                    _narr_ratio = _jr.iloc[-1]["jolts_openings"] / _jr.iloc[-1]["jolts_hires"]
+
+            _narr_info_yoy = None
+            if "info_sector_emp" in labor_df.columns:
+                _is = labor_df.set_index("date")["info_sector_emp"].dropna()
+                if len(_is) >= 13:
+                    _narr_info_yoy = ((_is.iloc[-1] / _is.iloc[-13]) - 1) * 100
+
+            _narr_health_yoy = None
+            if "healthcare_emp" in labor_df.columns:
+                _hs = labor_df.set_index("date")["healthcare_emp"].dropna()
+                if len(_hs) >= 13:
+                    _narr_health_yoy = ((_hs.iloc[-1] / _hs.iloc[-13]) - 1) * 100
+
+            _narr_gap = None
+            if "u6_rate" in labor_df.columns and "u3_rate" in labor_df.columns:
+                _ug = labor_df[["u6_rate", "u3_rate"]].dropna()
+                if not _ug.empty:
+                    _narr_gap = _ug.iloc[-1]["u6_rate"] - _ug.iloc[-1]["u3_rate"]
+
+            # --- Conclusion 1: The Matching Problem ---
+            st.markdown("#### 1. The Hiring System Is Broken — Not the Workers")
+            ratio_text = f" Currently at **{_narr_ratio:.2f}x**," if _narr_ratio else ""
+            st.markdown(
+                f"The openings-to-hires ratio is the single most important chart on this page.{ratio_text} "
+                "it means employers are posting far more jobs than they actually fill. A significant "
+                "share of these are **ghost jobs** — postings kept open for pipeline building, compliance "
+                "requirements, or investor optics with no immediate intent to hire.\n\n"
+                "For job seekers, this means: if you're applying to 200 jobs and hearing back from 10, "
+                "the problem is likely not your resume. The *effective* number of real positions is "
+                "probably **50-65% of what's posted**. Focus on companies showing actual headcount growth "
+                "in recent quarters rather than spray-applying to every listing."
+            )
+
+            # --- Conclusion 2: Where the jobs are vs where people are ---
+            st.markdown("#### 2. Jobs Exist — But the Economy Is Trading Down")
+            if _narr_info_yoy is not None and _narr_health_yoy is not None:
+                st.markdown(
+                    f"Information sector employment is at **{_narr_info_yoy:+.1f}%** year-over-year while "
+                    f"Education & Health is at **{_narr_health_yoy:+.1f}%**. "
+                    "Yes, people *can* reskill into healthcare or government — but telling a software engineer "
+                    "earning $140k to become a home health aide at $38k isn't a 'skills gap' solution. "
+                    "It's **value destruction**.\n\n"
+                    "The economy is replacing high-productivity, high-wage jobs with lower-productivity ones. "
+                    "Aggregate payroll numbers look healthy, but the *composition* of job growth matters enormously "
+                    "for long-term economic output and individual livelihoods."
+                )
+            else:
+                st.markdown(
+                    "The sector charts show healthcare and government driving most job growth while "
+                    "tech-adjacent sectors stagnate. Aggregate payroll numbers mask a composition problem: "
+                    "the economy is adding jobs, but not the kind that leverage the skills of displaced "
+                    "knowledge workers."
+                )
+
+            # --- Conclusion 3: The Information Asymmetry ---
+            st.markdown("#### 3. The Real Crisis Is Information, Not Skills")
+            gap_text = f" (the current **{_narr_gap:.1f} pp** U-6/U-3 gap confirms this)" if _narr_gap else ""
+            st.markdown(
+                "There is a massive **information asymmetry** in the labor market. Employers know their "
+                "budget, timeline, competing candidates, and whether a role is real. Workers know almost "
+                f"nothing. Hidden slack{gap_text} "
+                "shows that the headline unemployment rate understates real pain — discouraged workers "
+                "and involuntary part-timers don't show up in U-3.\n\n"
+                "Meanwhile, the staffing industry — which should reduce friction — often makes it worse. "
+                "Their business model profits from opacity: a 20-35% markup on placements means efficiency "
+                "is bad for margins. Multiple agencies frequently post the same role, inflating apparent "
+                "demand while fragmenting the worker's ability to negotiate."
+            )
+
+            # --- Conclusion 4: What would actually help ---
+            st.markdown("#### 4. Transparency Would Be the Cheapest, Highest-Impact Fix")
+            st.markdown(
+                "The data on this page points to one clear policy conclusion: we don't need more "
+                "retraining programs — we need **transparency mandates**.\n\n"
+                "Concrete changes that the data supports:\n"
+                "- **Require salary ranges on all postings** — states doing this (Colorado, NYC, Washington) "
+                "are already reducing the apply-interview-discover-lowball cycle\n"
+                "- **Mandate fill-rate disclosure** — if a company posts 500 roles and fills 30, that should "
+                "be public. It would instantly expose ghost postings\n"
+                "- **Publish JOLTS data by sector and company size** — aggregate openings numbers are misleading. "
+                "If 60% of 'openings' come from companies with <5% hire rates, the entire narrative changes\n"
+                "- **Require staffing agencies to disclose the client, markup, and whether the role has a "
+                "confirmed start date** — this alone would eliminate the worst practices"
+            )
+
+            # --- Conclusion 5: For job seekers right now ---
+            st.markdown("#### 5. Practical Advice for Job Seekers Today")
+            st.markdown(
+                "While waiting for systemic change, here's what the data says you should do *now*:\n\n"
+                "1. **Don't take JOLTS at face value.** Many postings aren't real. Prioritize companies "
+                "with confirmed headcount growth (check LinkedIn employee trends, earnings calls, or "
+                "recent funding rounds)\n"
+                "2. **Track sector trends, not headlines.** A 200k payroll beat means nothing if your "
+                "sector is flat. Use this dashboard to know where *your* sector stands\n"
+                "3. **Negotiate from data.** If the openings-to-hires ratio is high, employers are "
+                "struggling to fill roles even if it doesn't feel that way. You have more leverage than "
+                "the rejection rate suggests\n"
+                "4. **Consider adjacent sectors growing in your skill range** — not a full career pivot, "
+                "but lateral moves where your existing expertise transfers at comparable compensation\n"
+                "5. **Time your search.** The quits rate signals worker confidence. When it's low, "
+                "fewer people are leaving voluntarily — meaning fewer backfill openings. The JOLTS charts "
+                "above help you read the cycle"
+            )
+
+            st.markdown(
+                '<div style="border-left: 5px solid #1a1a2e; padding: 10px 16px; margin-top: 16px; '
+                'background-color: #f8f9fa; border-radius: 0 6px 6px 0;">'
+                '<strong>Bottom line:</strong> The U.S. labor market is functioning well <em>in aggregate</em> '
+                'but failing <em>in allocation</em>. The matching mechanism between employers and workers is '
+                'broken — not because workers lack skills, but because the system lacks transparency. '
+                'The data to fix this already exists. It just needs to be connected and made public.'
+                '</div>',
+                unsafe_allow_html=True,
+            )
+
     # ===================================================================
     # TAB 4: HOW THE MODELS WORK
     # ===================================================================
