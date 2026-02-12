@@ -523,32 +523,48 @@ def _sector_employment_chart(df: pd.DataFrame) -> go.Figure | None:
 
 
 def _sector_employment_level_chart(df: pd.DataFrame) -> go.Figure | None:
-    """Absolute employment levels (thousands) for 5 sectors."""
-    sector_cols = {
-        "info_sector_emp": ("Information", "#e74c3c"),
-        "prof_business_emp": ("Prof. & Business Svc.", "#ff6b35"),
-        "computer_systems_emp": ("Computer Systems Design", "#9b59b6"),
+    """Absolute employment levels split into two panels so tech sectors are visible."""
+    large_sectors = {
         "healthcare_emp": ("Education & Health", "#2ecc71"),
         "government_emp": ("Government", "#3498db"),
+        "prof_business_emp": ("Prof. & Business Svc.", "#ff6b35"),
     }
-    available = {k: v for k, v in sector_cols.items() if k in df.columns}
-    if not available:
+    tech_sectors = {
+        "computer_systems_emp": ("Computer Systems Design", "#9b59b6"),
+        "info_sector_emp": ("Information", "#e74c3c"),
+    }
+    avail_large = {k: v for k, v in large_sectors.items() if k in df.columns}
+    avail_tech = {k: v for k, v in tech_sectors.items() if k in df.columns}
+    if not avail_large and not avail_tech:
         return None
 
-    fig = go.Figure()
-    for col, (label, color) in available.items():
+    fig = make_subplots(
+        rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.08,
+        row_heights=[0.5, 0.5],
+        subplot_titles=(
+            "Healthcare, Government & Prof. Services (thousands)",
+            "Information & Computer Systems Design (thousands)",
+        ),
+    )
+    for col, (label, color) in avail_large.items():
         s = df.set_index("date")[col].dropna()
         fig.add_trace(go.Scatter(
             x=s.index, y=s.values, name=label,
-            line=dict(width=2, color=color),
-        ))
+            line=dict(width=2.5, color=color),
+        ), row=1, col=1)
+    for col, (label, color) in avail_tech.items():
+        s = df.set_index("date")[col].dropna()
+        fig.add_trace(go.Scatter(
+            x=s.index, y=s.values, name=label,
+            line=dict(width=2.5, color=color),
+        ), row=2, col=1)
     _add_recession_shading(fig)
+    fig.update_yaxes(title_text="Employees (k)", row=1, col=1)
+    fig.update_yaxes(title_text="Employees (k)", row=2, col=1)
+    fig.update_xaxes(range=[df["date"].min(), df["date"].max()])
     fig.update_layout(
-        title="Employment Levels by Sector (thousands)",
-        yaxis_title="Employees (thousands)",
-        height=440,
-        xaxis_range=[df["date"].min(), df["date"].max()],
-        legend=dict(orientation="h", y=-0.15),
+        height=560,
+        legend=dict(orientation="h", y=-0.08),
     )
     return fig
 
