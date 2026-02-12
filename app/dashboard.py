@@ -486,6 +486,7 @@ def _headline_vs_reality_chart(df: pd.DataFrame) -> go.Figure | None:
     _add_recession_shading(fig)
     fig.update_yaxes(title_text="Rate (%)", row=1, col=1)
     fig.update_yaxes(title_text="Spread (pp)", row=2, col=1)
+    fig.update_xaxes(range=[merged["date"].min(), merged["date"].max()])
     fig.update_layout(height=520, legend=dict(orientation="h", y=1.06))
     return fig
 
@@ -515,6 +516,7 @@ def _sector_employment_chart(df: pd.DataFrame) -> go.Figure | None:
         title="Year-over-Year Employment Growth by Sector",
         yaxis_title="YoY Change (%)",
         height=440,
+        xaxis_range=[df["date"].min(), df["date"].max()],
         legend=dict(orientation="h", y=-0.15),
     )
     return fig
@@ -554,6 +556,7 @@ def _tech_focus_indexed_chart(df: pd.DataFrame, base_date: str) -> go.Figure | N
         title=f"Tech-Adjacent Employment (Indexed, {base_date[:7]} = 100)",
         yaxis_title="Index (base = 100)",
         height=440,
+        xaxis_range=[base_ts, df["date"].max()],
     )
     return fig
 
@@ -580,6 +583,7 @@ def _jolts_chart(df: pd.DataFrame) -> tuple[go.Figure | None, go.Figure | None]:
         title="JOLTS: Job Openings, Hires & Quits",
         yaxis_title="Thousands / Rate",
         height=400,
+        xaxis_range=[df["date"].min(), df["date"].max()],
         legend=dict(orientation="h", y=-0.15),
     )
 
@@ -604,6 +608,7 @@ def _jolts_chart(df: pd.DataFrame) -> tuple[go.Figure | None, go.Figure | None]:
                 title="Openings-to-Hires Ratio (higher = jobs posted but not filled)",
                 yaxis_title="Ratio",
                 height=340,
+                xaxis_range=[df["date"].min(), df["date"].max()],
             )
     return fig1, fig2
 
@@ -642,6 +647,7 @@ def _hidden_slack_chart(df: pd.DataFrame) -> go.Figure | None:
         fig.update_yaxes(title_text="Thousands", row=row_idx, col=1)
 
     _add_recession_shading(fig)
+    fig.update_xaxes(range=[df["date"].min(), df["date"].max()])
     fig.update_layout(height=420 if rows == 2 else 300, legend=dict(orientation="h", y=1.06))
     return fig
 
