@@ -19,7 +19,8 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from recession_project.config import DEFAULT_ALERT_THRESHOLD, FEATURE_DESCRIPTIONS, FEATURE_LABELS
+from pandas_datareader.data import DataReader
+from recession_project.config import DEFAULT_ALERT_THRESHOLD, FEATURE_DESCRIPTIONS, FEATURE_LABELS, LABOR_DEEP_DIVE_SERIES
 
 ARTIFACT_DIR = ROOT / "artifacts"
 
@@ -430,6 +431,245 @@ def _load_artifacts() -> tuple[
         florida_latest,
         nowcast,
     )
+
+
+# ---------------------------------------------------------------------------
+# Labor Market Deep Dive — data fetching & chart helpers
+# ---------------------------------------------------------------------------
+
+@st.cache_data(ttl=3600 * 6, show_spinner="Fetching labor market data from FRED…")
+def _fetch_labor_deep_dive_data() -> pd.DataFrame | None:
+    """Fetch 11 FRED series for the Labor Market Deep Dive tab.
+
+    Returns a monthly DataFrame indexed by date, or None if all fetches fail.
+    """
+    end = datetime.date.today()
+    start = datetime.date(2000, 1, 1)
+    frames: dict[str, pd.Series] = {}
+    for key, code in LABOR_DEEP_DIVE_SERIES.items():
+        try:
+            s = DataReader(code, "fred", start, end)[code]
+            # Resample to month-end to align different frequencies
+            s = s.resample("ME").last()
+            frames[key] = s
+        except Exception:
+            pass
+    if not frames:
+        return None
+    df = pd.DataFrame(frames)
+    df.index.name = "date"
+    df = df.reset_index()
+    return df
+
+
+def _labor_insight_card(title: str, body: str, accent_color: str = "#1f77b4") -> str:
+    """Return styled HTML card matching existing dashboard card pattern."""
+    return (
+        f'<div style="border-left: 5px solid {accent_color}; padding: 10px 16px; '
+        f'margin-bottom: 12px; background-color: #f8f9fa; border-radius: 0 6px 6px 0;">'
+        f'<strong style="font-size:1.05em;">{title}</strong><br/>'
+        f'<span style="font-size:0.95em; color:#333;">{body}</span></div>'
+    )
+
+
+def _add_recession_shading(fig: go.Figure) -> None:
+    """Add NBER recession shading rectangles to a plotly figure."""
+    for start, end in NBER_RECESSIONS:
+        fig.add_vrect(x0=start, x1=end, fillcolor="gray", opacity=0.18, line_width=0)
+
+
+def _headline_vs_reality_chart(df: pd.DataFrame) -> go.Figure | None:
+    """U-3 vs U-6 unemployment overlay with spread subplot."""
+    if "u6_rate" not in df.columns:
+        return None
+    # Need U-3 from the snapshot or fetch separately — use UNRATE via same mechanism
+    # U-3 is already 'unemployment' in snapshot, but we fetch it here for alignment
+    try:
+        u3 = DataReader("UNRATE", "fred", df["date"].min(), df["date"].max())["UNRATE"]
+        u3 = u3.resample("ME").last()
+        u3_df = u3.reset_index()
+        u3_df.columns = ["date", "u3_rate"]
+        merged = pd.merge(df[["date", "u6_rate"]].dropna(), u3_df, on="date", how="inner")
+    except Exception:
+        return None
+    if merged.empty:
+        return None
+
+    merged["spread"] = merged["u6_rate"] - merged["u3_rate"]
+
+    fig = make_subplots(
+        rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.08,
+        row_heights=[0.65, 0.35],
+        subplot_titles=("Official (U-3) vs Broad (U-6) Unemployment", "U-6 minus U-3 Spread"),
+    )
+    fig.add_trace(go.Scatter(x=merged["date"], y=merged["u3_rate"], name="U-3 (Official)",
+                             line=dict(width=2, color="#1f77b4")), row=1, col=1)
+    fig.add_trace(go.Scatter(x=merged["date"], y=merged["u6_rate"], name="U-6 (Broad)",
+                             line=dict(width=2, color="#e74c3c")), row=1, col=1)
+    fig.add_trace(go.Scatter(x=merged["date"], y=merged["spread"], name="Spread",
+                             line=dict(width=2, color="#9b59b6"),
+                             fill="tozeroy", fillcolor="rgba(155, 89, 182, 0.1)"), row=2, col=1)
+    _add_recession_shading(fig)
+    fig.update_yaxes(title_text="Rate (%)", row=1, col=1)
+    fig.update_yaxes(title_text="Spread (pp)", row=2, col=1)
+    fig.update_layout(height=520, legend=dict(orientation="h", y=1.06))
+    return fig
+
+
+def _sector_employment_chart(df: pd.DataFrame) -> go.Figure | None:
+    """YoY % change for 5 employment sectors."""
+    sector_cols = {
+        "info_sector_emp": ("Information", "#e74c3c"),
+        "prof_business_emp": ("Prof. & Business Svc.", "#ff6b35"),
+        "computer_systems_emp": ("Computer Systems Design", "#9b59b6"),
+        "healthcare_emp": ("Education & Health", "#2ecc71"),
+        "government_emp": ("Government", "#3498db"),
+    }
+    available = {k: v for k, v in sector_cols.items() if k in df.columns}
+    if not available:
+        return None
+
+    fig = go.Figure()
+    for col, (label, color) in available.items():
+        s = df.set_index("date")[col].dropna()
+        yoy = s.pct_change(12) * 100
+        fig.add_trace(go.Scatter(x=yoy.index, y=yoy.values, name=label,
+                                 line=dict(width=2, color=color)))
+    _add_recession_shading(fig)
+    fig.add_hline(y=0, line_dash="dot", line_color="#999", line_width=1)
+    fig.update_layout(
+        title="Year-over-Year Employment Growth by Sector",
+        yaxis_title="YoY Change (%)",
+        height=440,
+        legend=dict(orientation="h", y=-0.15),
+    )
+    return fig
+
+
+def _tech_focus_indexed_chart(df: pd.DataFrame, base_date: str) -> go.Figure | None:
+    """Indexed (base=100) employment for tech-adjacent sectors from a chosen base date."""
+    cols = {
+        "info_sector_emp": ("Information", "#e74c3c"),
+        "computer_systems_emp": ("Computer Systems Design", "#9b59b6"),
+        "prof_business_emp": ("Prof. & Business Svc.", "#ff6b35"),
+    }
+    available = {k: v for k, v in cols.items() if k in df.columns}
+    if not available:
+        return None
+
+    base_ts = pd.Timestamp(base_date)
+    fig = go.Figure()
+    for col, (label, color) in available.items():
+        s = df.set_index("date")[col].dropna()
+        if base_ts not in s.index:
+            # Find nearest date
+            idx = s.index.get_indexer([base_ts], method="nearest")[0]
+            base_val = s.iloc[idx]
+        else:
+            base_val = s.loc[base_ts]
+        if base_val == 0 or pd.isna(base_val):
+            continue
+        indexed = (s / base_val) * 100
+        fig.add_trace(go.Scatter(x=indexed.index, y=indexed.values, name=label,
+                                 line=dict(width=2.5, color=color)))
+    _add_recession_shading(fig)
+    fig.add_hline(y=100, line_dash="dot", line_color="#999", line_width=1,
+                  annotation_text="Base = 100", annotation_position="bottom right",
+                  annotation_font_size=10, annotation_font_color="#999")
+    fig.update_layout(
+        title=f"Tech-Adjacent Employment (Indexed, {base_date[:7]} = 100)",
+        yaxis_title="Index (base = 100)",
+        height=440,
+    )
+    return fig
+
+
+def _jolts_chart(df: pd.DataFrame) -> tuple[go.Figure | None, go.Figure | None]:
+    """JOLTS openings/hires/quits lines + openings-to-hires ratio."""
+    jolts_cols = {
+        "jolts_openings": ("Job Openings", "#1f77b4"),
+        "jolts_hires": ("Hires", "#2ecc71"),
+        "jolts_quits": ("Quits Rate", "#ff6b35"),
+    }
+    available = {k: v for k, v in jolts_cols.items() if k in df.columns}
+    if not available:
+        return None, None
+
+    # Main JOLTS chart
+    fig1 = go.Figure()
+    for col, (label, color) in available.items():
+        s = df.set_index("date")[col].dropna()
+        fig1.add_trace(go.Scatter(x=s.index, y=s.values, name=label,
+                                  line=dict(width=2, color=color)))
+    _add_recession_shading(fig1)
+    fig1.update_layout(
+        title="JOLTS: Job Openings, Hires & Quits",
+        yaxis_title="Thousands / Rate",
+        height=400,
+        legend=dict(orientation="h", y=-0.15),
+    )
+
+    # Ratio chart
+    fig2 = None
+    if "jolts_openings" in df.columns and "jolts_hires" in df.columns:
+        ratio_df = df[["date", "jolts_openings", "jolts_hires"]].dropna()
+        if not ratio_df.empty:
+            ratio_df = ratio_df.copy()
+            ratio_df["ratio"] = ratio_df["jolts_openings"] / ratio_df["jolts_hires"]
+            fig2 = go.Figure()
+            fig2.add_trace(go.Scatter(
+                x=ratio_df["date"], y=ratio_df["ratio"], name="Openings / Hires",
+                line=dict(width=2.5, color="#1f77b4"),
+                fill="tozeroy", fillcolor="rgba(31, 119, 180, 0.08)",
+            ))
+            fig2.add_hline(y=1.0, line_dash="dot", line_color="#e74c3c", line_width=1.5,
+                           annotation_text="1:1 ratio", annotation_position="bottom right",
+                           annotation_font_size=10, annotation_font_color="#e74c3c")
+            _add_recession_shading(fig2)
+            fig2.update_layout(
+                title="Openings-to-Hires Ratio (higher = jobs posted but not filled)",
+                yaxis_title="Ratio",
+                height=340,
+            )
+    return fig1, fig2
+
+
+def _hidden_slack_chart(df: pd.DataFrame) -> go.Figure | None:
+    """Avg unemployment duration + involuntary part-time subplots."""
+    has_dur = "unemp_duration_mean" in df.columns
+    has_pt = "involuntary_part_time" in df.columns
+    if not has_dur and not has_pt:
+        return None
+
+    rows = (1 if has_dur else 0) + (1 if has_pt else 0)
+    titles = []
+    if has_dur:
+        titles.append("Average Weeks Unemployed")
+    if has_pt:
+        titles.append("Involuntary Part-Time Workers (thousands)")
+
+    fig = make_subplots(rows=rows, cols=1, shared_xaxes=True, vertical_spacing=0.10,
+                        subplot_titles=titles)
+    row_idx = 1
+    if has_dur:
+        s = df.set_index("date")["unemp_duration_mean"].dropna()
+        fig.add_trace(go.Scatter(x=s.index, y=s.values, name="Avg Weeks Unemployed",
+                                 line=dict(width=2, color="#e74c3c"),
+                                 fill="tozeroy", fillcolor="rgba(231, 76, 60, 0.08)"),
+                      row=row_idx, col=1)
+        fig.update_yaxes(title_text="Weeks", row=row_idx, col=1)
+        row_idx += 1
+    if has_pt:
+        s = df.set_index("date")["involuntary_part_time"].dropna()
+        fig.add_trace(go.Scatter(x=s.index, y=s.values, name="Involuntary Part-Time",
+                                 line=dict(width=2, color="#ff6b35"),
+                                 fill="tozeroy", fillcolor="rgba(255, 107, 53, 0.08)"),
+                      row=row_idx, col=1)
+        fig.update_yaxes(title_text="Thousands", row=row_idx, col=1)
+
+    _add_recession_shading(fig)
+    fig.update_layout(height=420 if rows == 2 else 300, legend=dict(orientation="h", y=1.06))
+    return fig
 
 
 # ---------------------------------------------------------------------------
@@ -2083,10 +2323,11 @@ def main() -> None:
     # -----------------------------------------------------------------------
     # TABS
     # -----------------------------------------------------------------------
-    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+    tab1, tab2, tab3, tab7, tab4, tab5, tab6 = st.tabs([
         "Executive Summary",
         "Recessions: Then vs Now",
         "Florida Deep Dive",
+        "Labor Market Deep Dive",
         "How the Models Work",
         "Technical Details",
         "Action Center",
@@ -2435,6 +2676,270 @@ def main() -> None:
                     "closely. Consider: state-level support for tourism sector, construction workforce programs, "
                     "and housing affordability measures."
                 )
+
+    # ===================================================================
+    # TAB 7: LABOR MARKET DEEP DIVE
+    # ===================================================================
+    with tab7:
+        st.caption(
+            "Headline employment numbers can mask painful realities in specific sectors. "
+            "This tab exposes the gap between official stats and the lived experience of job seekers, "
+            "especially in tech and data fields."
+        )
+
+        labor_df = _fetch_labor_deep_dive_data()
+
+        if labor_df is None:
+            st.warning(
+                "Could not fetch labor market data from FRED. "
+                "This may be a temporary network issue — try refreshing in a few minutes."
+            )
+        else:
+            # -----------------------------------------------------------
+            # Section 1: The Headline vs Reality Gap
+            # -----------------------------------------------------------
+            st.subheader("The Headline vs Reality Gap")
+            st.markdown(
+                "The official unemployment rate (U-3) only counts people *actively looking* for work. "
+                "The broader U-6 rate includes discouraged workers and people stuck in part-time jobs "
+                "who want full-time work. The gap between them reveals hidden labor market pain."
+            )
+
+            # Metrics row
+            if "u6_rate" in labor_df.columns:
+                latest = labor_df.dropna(subset=["u6_rate"]).iloc[-1] if not labor_df.dropna(subset=["u6_rate"]).empty else None
+                if latest is not None:
+                    try:
+                        u3_latest = DataReader("UNRATE", "fred",
+                                               latest["date"] - pd.DateOffset(months=2),
+                                               latest["date"])["UNRATE"].iloc[-1]
+                    except Exception:
+                        u3_latest = None
+                    mc1, mc2, mc3 = st.columns(3)
+                    if u3_latest is not None:
+                        mc1.metric("U-3 (Official)", f"{u3_latest:.1f}%")
+                    mc2.metric("U-6 (Broad)", f"{latest['u6_rate']:.1f}%")
+                    if u3_latest is not None:
+                        gap = latest["u6_rate"] - u3_latest
+                        mc3.metric("Gap (U-6 minus U-3)", f"{gap:.1f} pp")
+                        if gap > 4.0:
+                            st.markdown(_labor_insight_card(
+                                "Significant hidden slack",
+                                f"The {gap:.1f} pp gap between U-6 and U-3 suggests a meaningful share of workers "
+                                "are underemployed or have given up searching. The headline number understates real pain.",
+                                "#e74c3c",
+                            ), unsafe_allow_html=True)
+                        else:
+                            st.markdown(_labor_insight_card(
+                                "Gap within normal range",
+                                f"The {gap:.1f} pp spread is relatively contained, suggesting most labor market "
+                                "slack is captured by the headline rate.",
+                                "#2ecc71",
+                            ), unsafe_allow_html=True)
+
+            fig_headline = _headline_vs_reality_chart(labor_df)
+            if fig_headline:
+                st.plotly_chart(fig_headline, use_container_width=True)
+
+            st.markdown("---")
+
+            # -----------------------------------------------------------
+            # Section 2: Where Are Jobs Actually Going?
+            # -----------------------------------------------------------
+            st.subheader("Where Are Jobs Actually Going?")
+            st.markdown(
+                "Not all job growth is created equal. Healthcare and government have driven most "
+                "recent gains, while the Information sector (which includes tech) and Professional "
+                "Services have stagnated or declined. This chart shows year-over-year employment "
+                "growth by sector."
+            )
+
+            fig_sector = _sector_employment_chart(labor_df)
+            if fig_sector:
+                st.plotly_chart(fig_sector, use_container_width=True)
+
+                # Summary card with latest values
+                sector_cols = {
+                    "info_sector_emp": "Information",
+                    "prof_business_emp": "Prof. & Business Svc.",
+                    "healthcare_emp": "Education & Health",
+                    "government_emp": "Government",
+                }
+                parts = []
+                for col, label in sector_cols.items():
+                    if col in labor_df.columns:
+                        s = labor_df.set_index("date")[col].dropna()
+                        if len(s) >= 13:
+                            yoy = ((s.iloc[-1] / s.iloc[-13]) - 1) * 100
+                            direction = "+" if yoy > 0 else ""
+                            parts.append(f"<b>{label}:</b> {direction}{yoy:.1f}%")
+                if parts:
+                    st.markdown(_labor_insight_card(
+                        "Latest YoY Growth Rates",
+                        " &nbsp;|&nbsp; ".join(parts),
+                        "#ff6b35",
+                    ), unsafe_allow_html=True)
+
+            st.markdown("---")
+
+            # -----------------------------------------------------------
+            # Section 3: Tech & Data Job Market Health
+            # -----------------------------------------------------------
+            st.subheader("Tech & Data Job Market Health")
+            st.markdown(
+                "Indexing employment to a base date reveals how much tech-adjacent sectors have "
+                "grown (or shrunk) relative to a starting point. Pick a base date to compare."
+            )
+
+            base_options = {
+                "Pre-COVID (Jan 2020)": "2020-01-01",
+                "Post-COVID Peak (Jan 2022)": "2022-01-01",
+                "Five Years Ago (Jan 2021)": "2021-01-01",
+                "Start of Data (Jan 2000)": "2000-01-01",
+            }
+            base_choice = st.radio(
+                "Index base date",
+                list(base_options.keys()),
+                horizontal=True,
+                key="labor_base_date",
+            )
+            base_date = base_options[base_choice]
+
+            fig_tech = _tech_focus_indexed_chart(labor_df, base_date)
+            if fig_tech:
+                st.plotly_chart(fig_tech, use_container_width=True)
+
+                # Peak-to-current change card
+                tech_cols = {
+                    "info_sector_emp": "Information",
+                    "computer_systems_emp": "Computer Systems Design",
+                }
+                peak_parts = []
+                for col, label in tech_cols.items():
+                    if col in labor_df.columns:
+                        s = labor_df.set_index("date")[col].dropna()
+                        if not s.empty:
+                            peak_val = s.max()
+                            current_val = s.iloc[-1]
+                            pct_from_peak = ((current_val / peak_val) - 1) * 100
+                            peak_parts.append(f"<b>{label}:</b> {pct_from_peak:+.1f}% from peak")
+                if peak_parts:
+                    st.markdown(_labor_insight_card(
+                        "Distance from Peak Employment",
+                        " &nbsp;|&nbsp; ".join(peak_parts),
+                        "#9b59b6",
+                    ), unsafe_allow_html=True)
+
+            with st.expander("Why does this matter for tech workers?"):
+                st.markdown(
+                    "Official payroll numbers aggregate across all sectors. When total payrolls grow by 200k, "
+                    "it sounds great — but if 180k of those are in healthcare and government while Information "
+                    "sector jobs are flat or declining, the experience for tech/data professionals is very "
+                    "different from the headline.\n\n"
+                    "**Computer Systems Design** (NAICS 5415) is the closest FRED series to 'tech jobs.' "
+                    "It covers software development, IT consulting, and systems integration. When this series "
+                    "stagnates while total payrolls grow, it means the labor market is healthy in aggregate "
+                    "but structurally challenging for tech workers."
+                )
+
+            st.markdown("---")
+
+            # -----------------------------------------------------------
+            # Section 4: JOLTS — Are Companies Actually Hiring?
+            # -----------------------------------------------------------
+            st.subheader("JOLTS: Are Companies Actually Hiring?")
+            st.markdown(
+                "The Job Openings and Labor Turnover Survey (JOLTS) tells us whether employers are "
+                "posting jobs, actually filling them, and whether workers feel confident enough to quit. "
+                "A high openings-to-hires ratio means lots of postings but few actual hires — "
+                "'ghost jobs' or very selective hiring."
+            )
+
+            fig_jolts, fig_ratio = _jolts_chart(labor_df)
+            if fig_jolts:
+                st.plotly_chart(fig_jolts, use_container_width=True)
+            if fig_ratio:
+                st.plotly_chart(fig_ratio, use_container_width=True)
+
+            # Hiring reality check
+            if "jolts_openings" in labor_df.columns and "jolts_hires" in labor_df.columns:
+                recent = labor_df[["date", "jolts_openings", "jolts_hires"]].dropna()
+                if not recent.empty:
+                    r = recent.iloc[-1]
+                    ratio_val = r["jolts_openings"] / r["jolts_hires"] if r["jolts_hires"] > 0 else 0
+                    mc1, mc2, mc3 = st.columns(3)
+                    mc1.metric("Job Openings", f"{r['jolts_openings']:,.0f}k")
+                    mc2.metric("Actual Hires", f"{r['jolts_hires']:,.0f}k")
+                    mc3.metric("Openings/Hires Ratio", f"{ratio_val:.2f}")
+                    if ratio_val > 1.5:
+                        st.markdown(_labor_insight_card(
+                            "Hiring Disconnect",
+                            f"With a {ratio_val:.2f}x openings-to-hires ratio, employers are posting far more jobs "
+                            "than they're filling. This can reflect ghost postings, unrealistic requirements, "
+                            "or very selective hiring — all of which make the job search feel harder than "
+                            "headline openings suggest.",
+                            "#e74c3c",
+                        ), unsafe_allow_html=True)
+
+            # Quits rate insight
+            if "jolts_quits" in labor_df.columns:
+                quits = labor_df.set_index("date")["jolts_quits"].dropna()
+                if len(quits) >= 2:
+                    latest_qr = quits.iloc[-1]
+                    pre_covid_avg = quits.loc[:"2020-01"].mean() if len(quits.loc[:"2020-01"]) > 12 else None
+                    if pre_covid_avg is not None:
+                        st.markdown(_labor_insight_card(
+                            "Worker Confidence (Quits Rate)",
+                            f"Current quits rate: <b>{latest_qr:.1f}%</b> vs pre-COVID average: <b>{pre_covid_avg:.1f}%</b>. "
+                            + ("Workers are quitting less than normal — a sign of caution." if latest_qr < pre_covid_avg
+                               else "Workers feel confident enough to quit at above-normal rates."),
+                            "#3498db",
+                        ), unsafe_allow_html=True)
+
+            st.markdown("---")
+
+            # -----------------------------------------------------------
+            # Section 5: The Hidden Slack
+            # -----------------------------------------------------------
+            st.subheader("The Hidden Slack")
+            st.markdown(
+                "Two indicators that never make headlines but reveal real pain: how long the average "
+                "unemployed person stays jobless, and how many people are stuck in part-time work "
+                "when they want full-time hours."
+            )
+
+            fig_slack = _hidden_slack_chart(labor_df)
+            if fig_slack:
+                st.plotly_chart(fig_slack, use_container_width=True)
+
+            # Metrics row
+            slack_mc1, slack_mc2 = st.columns(2)
+            if "unemp_duration_mean" in labor_df.columns:
+                dur = labor_df.set_index("date")["unemp_duration_mean"].dropna()
+                if not dur.empty:
+                    slack_mc1.metric("Avg Weeks Unemployed", f"{dur.iloc[-1]:.1f}")
+            if "involuntary_part_time" in labor_df.columns:
+                ipt = labor_df.set_index("date")["involuntary_part_time"].dropna()
+                if not ipt.empty:
+                    slack_mc1_val = ipt.iloc[-1]
+                    slack_mc2.metric("Involuntary Part-Time", f"{slack_mc1_val:,.0f}k")
+
+            if "unemp_duration_mean" in labor_df.columns:
+                dur = labor_df.set_index("date")["unemp_duration_mean"].dropna()
+                if not dur.empty and dur.iloc[-1] > 20:
+                    st.markdown(_labor_insight_card(
+                        "Extended Job Searches",
+                        f"At {dur.iloc[-1]:.1f} weeks on average, job searches are taking longer than "
+                        "the historical norm (~15-20 weeks outside recessions). This disproportionately "
+                        "affects specialized workers who can't easily switch sectors.",
+                        "#e74c3c",
+                    ), unsafe_allow_html=True)
+                elif not dur.empty:
+                    st.markdown(_labor_insight_card(
+                        "Search Duration Normal",
+                        f"At {dur.iloc[-1]:.1f} weeks, average unemployment duration is within normal range.",
+                        "#2ecc71",
+                    ), unsafe_allow_html=True)
 
     # ===================================================================
     # TAB 4: HOW THE MODELS WORK

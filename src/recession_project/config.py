@@ -44,6 +44,20 @@ FLORIDA_SERIES_CODES = {
     "fl_initial_claims": "FLICLAIMS",
 }
 
+LABOR_DEEP_DIVE_SERIES = {
+    "u6_rate": "U6RATE",                     # Broad unemployment (U-6)
+    "info_sector_emp": "CES5000000001",      # Information sector jobs
+    "prof_business_emp": "CES6000000001",    # Professional & Business Services
+    "computer_systems_emp": "CES6561000001", # Computer Systems Design
+    "healthcare_emp": "CES6562000001",       # Education & Health Services
+    "government_emp": "USGOVT",              # Government employment
+    "jolts_openings": "JTSJOL",              # JOLTS job openings
+    "jolts_hires": "JTSHIR",                 # JOLTS hires
+    "jolts_quits": "JTSQUR",                 # JOLTS quits rate
+    "unemp_duration_mean": "UEMPMEAN",      # Avg weeks unemployed
+    "involuntary_part_time": "LNS12032194", # Part-time for economic reasons
+}
+
 FEATURE_LABELS = {
     "yield_spread": "Treasury Curve (10Y minus 2Y)",
     "yield_spread_3m_delta": "Yield Curve Change (3-month)",
@@ -70,6 +84,18 @@ FEATURE_LABELS = {
     "fl_manufacturing_payrolls_yoy": "Florida Manufacturing Payroll Growth (YoY)",
     "fl_private_building_permits_yoy": "Florida Building Permits Growth (YoY)",
     "fl_initial_claims_3m_pct": "Florida Initial Claims Change (3-month)",
+    # Labor Market Deep Dive series
+    "u6_rate": "Broad Unemployment Rate (U-6)",
+    "info_sector_emp": "Information Sector Employment",
+    "prof_business_emp": "Professional & Business Services Employment",
+    "computer_systems_emp": "Computer Systems Design Employment",
+    "healthcare_emp": "Education & Health Services Employment",
+    "government_emp": "Government Employment",
+    "jolts_openings": "JOLTS Job Openings",
+    "jolts_hires": "JOLTS Hires",
+    "jolts_quits": "JOLTS Quits Rate",
+    "unemp_duration_mean": "Average Weeks Unemployed",
+    "involuntary_part_time": "Part-Time for Economic Reasons",
 }
 
 FEATURE_DESCRIPTIONS = {
