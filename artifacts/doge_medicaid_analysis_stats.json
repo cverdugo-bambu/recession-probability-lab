@@ -1,0 +1,915 @@
+{
+  "source_url": "https://stopendataprod.blob.core.windows.net/datasets/medicaid-provider-spending/2026-02-09/medicaid-provider-spending.csv",
+  "download_date": "2026-02-13",
+  "file_size_gb": 10.32,
+  "total_rows": 227083361,
+  "total_paid": 1093562833518.05,
+  "total_paid_billions": 1093.56,
+  "total_claims": 18825564012,
+  "unique_hcpcs_codes": 10881,
+  "unique_billing_providers": 617503,
+  "months_covered": [
+    "2018-01",
+    "2018-02",
+    "2018-03",
+    "2018-04",
+    "2018-05",
+    "2018-06",
+    "2018-07",
+    "2018-08",
+    "2018-09",
+    "2018-10",
+    "2018-11",
+    "2018-12",
+    "2019-01",
+    "2019-02",
+    "2019-03",
+    "2019-04",
+    "2019-05",
+    "2019-06",
+    "2019-07",
+    "2019-08",
+    "2019-09",
+    "2019-10",
+    "2019-11",
+    "2019-12",
+    "2020-01",
+    "2020-02",
+    "2020-03",
+    "2020-04",
+    "2020-05",
+    "2020-06",
+    "2020-07",
+    "2020-08",
+    "2020-09",
+    "2020-10",
+    "2020-11",
+    "2020-12",
+    "2021-01",
+    "2021-02",
+    "2021-03",
+    "2021-04",
+    "2021-05",
+    "2021-06",
+    "2021-07",
+    "2021-08",
+    "2021-09",
+    "2021-10",
+    "2021-11",
+    "2021-12",
+    "2022-01",
+    "2022-02",
+    "2022-03",
+    "2022-04",
+    "2022-05",
+    "2022-06",
+    "2022-07",
+    "2022-08",
+    "2022-09",
+    "2022-10",
+    "2022-11",
+    "2022-12",
+    "2023-01",
+    "2023-02",
+    "2023-03",
+    "2023-04",
+    "2023-05",
+    "2023-06",
+    "2023-07",
+    "2023-08",
+    "2023-09",
+    "2023-10",
+    "2023-11",
+    "2023-12",
+    "2024-01",
+    "2024-02",
+    "2024-03",
+    "2024-04",
+    "2024-05",
+    "2024-06",
+    "2024-07",
+    "2024-08",
+    "2024-09",
+    "2024-10",
+    "2024-11",
+    "2024-12"
+  ],
+  "monthly_summary": [
+    {
+      "month": "2018-01",
+      "total_paid": 9232048522.37,
+      "total_claims": 187217689,
+      "total_beneficiaries": 113342897,
+      "row_count": 2342528,
+      "unique_billing_providers": 230343
+    },
+    {
+      "month": "2018-02",
+      "total_paid": 8420467832.36,
+      "total_claims": 171352502,
+      "total_beneficiaries": 104351414,
+      "row_count": 2182404,
+      "unique_billing_providers": 223890
+    },
+    {
+      "month": "2018-03",
+      "total_paid": 9129935988.66,
+      "total_claims": 183682093,
+      "total_beneficiaries": 110825567,
+      "row_count": 2298849,
+      "unique_billing_providers": 229785
+    },
+    {
+      "month": "2018-04",
+      "total_paid": 8981173692.47,
+      "total_claims": 179619696,
+      "total_beneficiaries": 107694834,
+      "row_count": 2245770,
+      "unique_billing_providers": 227737
+    },
+    {
+      "month": "2018-05",
+      "total_paid": 9384689427.05,
+      "total_claims": 185076176,
+      "total_beneficiaries": 110182879,
+      "row_count": 2288006,
+      "unique_billing_providers": 228477
+    },
+    {
+      "month": "2018-06",
+      "total_paid": 8607149265.45,
+      "total_claims": 164850507,
+      "total_beneficiaries": 100094343,
+      "row_count": 2116362,
+      "unique_billing_providers": 216671
+    },
+    {
+      "month": "2018-07",
+      "total_paid": 8854594623.63,
+      "total_claims": 169724543,
+      "total_beneficiaries": 102373426,
+      "row_count": 2171413,
+      "unique_billing_providers": 215506
+    },
+    {
+      "month": "2018-08",
+      "total_paid": 9492334835.45,
+      "total_claims": 186434915,
+      "total_beneficiaries": 113633755,
+      "row_count": 2374680,
+      "unique_billing_providers": 225891
+    },
+    {
+      "month": "2018-09",
+      "total_paid": 8661621043.37,
+      "total_claims": 168487953,
+      "total_beneficiaries": 100688468,
+      "row_count": 2147486,
+      "unique_billing_providers": 214527
+    },
+    {
+      "month": "2018-10",
+      "total_paid": 9921379666.38,
+      "total_claims": 198197925,
+      "total_beneficiaries": 118334299,
+      "row_count": 2460411,
+      "unique_billing_providers": 229358
+    },
+    {
+      "month": "2018-11",
+      "total_paid": 9072923512.38,
+      "total_claims": 173605775,
+      "total_beneficiaries": 102742360,
+      "row_count": 2175749,
+      "unique_billing_providers": 216770
+    },
+    {
+      "month": "2018-12",
+      "total_paid": 8907431063.82,
+      "total_claims": 166190908,
+      "total_beneficiaries": 96922801,
+      "row_count": 2058597,
+      "unique_billing_providers": 211803
+    },
+    {
+      "month": "2019-01",
+      "total_paid": 10529905105.9,
+      "total_claims": 202463697,
+      "total_beneficiaries": 119769828,
+      "row_count": 2457252,
+      "unique_billing_providers": 229768
+    },
+    {
+      "month": "2019-02",
+      "total_paid": 9680573063.79,
+      "total_claims": 187149977,
+      "total_beneficiaries": 111443392,
+      "row_count": 2312963,
+      "unique_billing_providers": 223699
+    },
+    {
+      "month": "2019-03",
+      "total_paid": 10638499933.2,
+      "total_claims": 202656457,
+      "total_beneficiaries": 120287086,
+      "row_count": 2462258,
+      "unique_billing_providers": 230714
+    },
+    {
+      "month": "2019-04",
+      "total_paid": 10662800690.75,
+      "total_claims": 204034522,
+      "total_beneficiaries": 120056910,
+      "row_count": 2480132,
+      "unique_billing_providers": 233371
+    },
+    {
+      "month": "2019-05",
+      "total_paid": 10788430160.42,
+      "total_claims": 203400802,
+      "total_beneficiaries": 118335223,
+      "row_count": 2453610,
+      "unique_billing_providers": 231476
+    },
+    {
+      "month": "2019-06",
+      "total_paid": 9722889154.49,
+      "total_claims": 179172702,
+      "total_beneficiaries": 106684985,
+      "row_count": 2251062,
+      "unique_billing_providers": 219912
+    },
+    {
+      "month": "2019-07",
+      "total_paid": 10364775003.79,
+      "total_claims": 193812066,
+      "total_beneficiaries": 114502037,
+      "row_count": 2390448,
+      "unique_billing_providers": 225116
+    },
+    {
+      "month": "2019-08",
+      "total_paid": 10628704037.17,
+      "total_claims": 202465238,
+      "total_beneficiaries": 120864691,
+      "row_count": 2506157,
+      "unique_billing_providers": 231294
+    },
+    {
+      "month": "2019-09",
+      "total_paid": 10530148010.35,
+      "total_claims": 201493119,
+      "total_beneficiaries": 118468405,
+      "row_count": 2470440,
+      "unique_billing_providers": 231361
+    },
+    {
+      "month": "2019-10",
+      "total_paid": 11890862793.23,
+      "total_claims": 229836010,
+      "total_beneficiaries": 135188555,
+      "row_count": 2747427,
+      "unique_billing_providers": 243432
+    },
+    {
+      "month": "2019-11",
+      "total_paid": 10694811682.1,
+      "total_claims": 197813102,
+      "total_beneficiaries": 116101805,
+      "row_count": 2413189,
+      "unique_billing_providers": 228279
+    },
+    {
+      "month": "2019-12",
+      "total_paid": 10773796446.44,
+      "total_claims": 195213165,
+      "total_beneficiaries": 114234300,
+      "row_count": 2368169,
+      "unique_billing_providers": 225437
+    },
+    {
+      "month": "2020-01",
+      "total_paid": 12417328718.27,
+      "total_claims": 231493965,
+      "total_beneficiaries": 137689829,
+      "row_count": 2761085,
+      "unique_billing_providers": 242759
+    },
+    {
+      "month": "2020-02",
+      "total_paid": 11387443071.26,
+      "total_claims": 210768595,
+      "total_beneficiaries": 125598414,
+      "row_count": 2553498,
+      "unique_billing_providers": 236134
+    },
+    {
+      "month": "2020-03",
+      "total_paid": 10327180044.76,
+      "total_claims": 175476623,
+      "total_beneficiaries": 99482797,
+      "row_count": 2113882,
+      "unique_billing_providers": 215936
+    },
+    {
+      "month": "2020-04",
+      "total_paid": 8541553016.11,
+      "total_claims": 126498275,
+      "total_beneficiaries": 61588397,
+      "row_count": 1329084,
+      "unique_billing_providers": 162138
+    },
+    {
+      "month": "2020-05",
+      "total_paid": 9276309404.63,
+      "total_claims": 146927456,
+      "total_beneficiaries": 78755754,
+      "row_count": 1693551,
+      "unique_billing_providers": 185451
+    },
+    {
+      "month": "2020-06",
+      "total_paid": 10386347586.83,
+      "total_claims": 180029356,
+      "total_beneficiaries": 106053452,
+      "row_count": 2196135,
+      "unique_billing_providers": 211834
+    },
+    {
+      "month": "2020-07",
+      "total_paid": 11043497587.59,
+      "total_claims": 193266077,
+      "total_beneficiaries": 114313859,
+      "row_count": 2334466,
+      "unique_billing_providers": 217645
+    },
+    {
+      "month": "2020-08",
+      "total_paid": 10945591115.5,
+      "total_claims": 193099010,
+      "total_beneficiaries": 115506523,
+      "row_count": 2370154,
+      "unique_billing_providers": 220412
+    },
+    {
+      "month": "2020-09",
+      "total_paid": 11345841778.78,
+      "total_claims": 204909864,
+      "total_beneficiaries": 123211041,
+      "row_count": 2521238,
+      "unique_billing_providers": 230141
+    },
+    {
+      "month": "2020-10",
+      "total_paid": 12256768912.53,
+      "total_claims": 220267867,
+      "total_beneficiaries": 132414607,
+      "row_count": 2691074,
+      "unique_billing_providers": 241242
+    },
+    {
+      "month": "2020-11",
+      "total_paid": 11824939391.28,
+      "total_claims": 207113269,
+      "total_beneficiaries": 122921505,
+      "row_count": 2538710,
+      "unique_billing_providers": 237363
+    },
+    {
+      "month": "2020-12",
+      "total_paid": 12337430898.16,
+      "total_claims": 214312315,
+      "total_beneficiaries": 124912560,
+      "row_count": 2558726,
+      "unique_billing_providers": 238611
+    },
+    {
+      "month": "2021-01",
+      "total_paid": 12594444977.41,
+      "total_claims": 222768005,
+      "total_beneficiaries": 132228710,
+      "row_count": 2671702,
+      "unique_billing_providers": 244592
+    },
+    {
+      "month": "2021-02",
+      "total_paid": 11715579066.73,
+      "total_claims": 206952736,
+      "total_beneficiaries": 124043876,
+      "row_count": 2549948,
+      "unique_billing_providers": 241312
+    },
+    {
+      "month": "2021-03",
+      "total_paid": 14136311330.65,
+      "total_claims": 258070549,
+      "total_beneficiaries": 156505580,
+      "row_count": 3089715,
+      "unique_billing_providers": 263709
+    },
+    {
+      "month": "2021-04",
+      "total_paid": 13565862878.51,
+      "total_claims": 245380331,
+      "total_beneficiaries": 149825892,
+      "row_count": 2975647,
+      "unique_billing_providers": 259223
+    },
+    {
+      "month": "2021-05",
+      "total_paid": 13208518113.69,
+      "total_claims": 232574191,
+      "total_beneficiaries": 140839982,
+      "row_count": 2851134,
+      "unique_billing_providers": 253789
+    },
+    {
+      "month": "2021-06",
+      "total_paid": 13415399746.47,
+      "total_claims": 237429997,
+      "total_beneficiaries": 146382446,
+      "row_count": 2962741,
+      "unique_billing_providers": 254208
+    },
+    {
+      "month": "2021-07",
+      "total_paid": 13562082770.47,
+      "total_claims": 238882520,
+      "total_beneficiaries": 145916059,
+      "row_count": 2910088,
+      "unique_billing_providers": 248266
+    },
+    {
+      "month": "2021-08",
+      "total_paid": 14202719417.5,
+      "total_claims": 256226837,
+      "total_beneficiaries": 160167062,
+      "row_count": 3098513,
+      "unique_billing_providers": 256607
+    },
+    {
+      "month": "2021-09",
+      "total_paid": 14024666614.74,
+      "total_claims": 255309350,
+      "total_beneficiaries": 157555104,
+      "row_count": 3048066,
+      "unique_billing_providers": 256882
+    },
+    {
+      "month": "2021-10",
+      "total_paid": 14165659978.04,
+      "total_claims": 255714420,
+      "total_beneficiaries": 156923616,
+      "row_count": 3073760,
+      "unique_billing_providers": 259236
+    },
+    {
+      "month": "2021-11",
+      "total_paid": 13904172445.35,
+      "total_claims": 248630420,
+      "total_beneficiaries": 152067680,
+      "row_count": 3013706,
+      "unique_billing_providers": 256673
+    },
+    {
+      "month": "2021-12",
+      "total_paid": 14062529938.43,
+      "total_claims": 246625408,
+      "total_beneficiaries": 150467545,
+      "row_count": 2931660,
+      "unique_billing_providers": 252714
+    },
+    {
+      "month": "2022-01",
+      "total_paid": 14412456539.88,
+      "total_claims": 251898388,
+      "total_beneficiaries": 154227930,
+      "row_count": 2942389,
+      "unique_billing_providers": 252426
+    },
+    {
+      "month": "2022-02",
+      "total_paid": 13250746218.5,
+      "total_claims": 235438630,
+      "total_beneficiaries": 142007832,
+      "row_count": 2833787,
+      "unique_billing_providers": 249653
+    },
+    {
+      "month": "2022-03",
+      "total_paid": 15695994584.59,
+      "total_claims": 280314489,
+      "total_beneficiaries": 168967395,
+      "row_count": 3285853,
+      "unique_billing_providers": 266470
+    },
+    {
+      "month": "2022-04",
+      "total_paid": 14609179171.9,
+      "total_claims": 254562730,
+      "total_beneficiaries": 152489004,
+      "row_count": 3020559,
+      "unique_billing_providers": 256690
+    },
+    {
+      "month": "2022-05",
+      "total_paid": 14956401093.08,
+      "total_claims": 257888000,
+      "total_beneficiaries": 153619367,
+      "row_count": 3034273,
+      "unique_billing_providers": 257589
+    },
+    {
+      "month": "2022-06",
+      "total_paid": 14650484215.68,
+      "total_claims": 250499963,
+      "total_beneficiaries": 151557080,
+      "row_count": 3003166,
+      "unique_billing_providers": 253680
+    },
+    {
+      "month": "2022-07",
+      "total_paid": 14067993433.62,
+      "total_claims": 234428626,
+      "total_beneficiaries": 140813991,
+      "row_count": 2824373,
+      "unique_billing_providers": 243395
+    },
+    {
+      "month": "2022-08",
+      "total_paid": 15825029409.54,
+      "total_claims": 273676256,
+      "total_beneficiaries": 168047334,
+      "row_count": 3285367,
+      "unique_billing_providers": 260742
+    },
+    {
+      "month": "2022-09",
+      "total_paid": 15268172192.71,
+      "total_claims": 263892615,
+      "total_beneficiaries": 160193966,
+      "row_count": 3164300,
+      "unique_billing_providers": 258297
+    },
+    {
+      "month": "2022-10",
+      "total_paid": 15854981611.14,
+      "total_claims": 269996140,
+      "total_beneficiaries": 165023707,
+      "row_count": 3248767,
+      "unique_billing_providers": 261551
+    },
+    {
+      "month": "2022-11",
+      "total_paid": 15675981809.01,
+      "total_claims": 263677624,
+      "total_beneficiaries": 161598929,
+      "row_count": 3178406,
+      "unique_billing_providers": 258432
+    },
+    {
+      "month": "2022-12",
+      "total_paid": 15297538611.3,
+      "total_claims": 251420641,
+      "total_beneficiaries": 151497788,
+      "row_count": 2989403,
+      "unique_billing_providers": 251442
+    },
+    {
+      "month": "2023-01",
+      "total_paid": 16594310221.53,
+      "total_claims": 280827661,
+      "total_beneficiaries": 169068899,
+      "row_count": 3255152,
+      "unique_billing_providers": 263617
+    },
+    {
+      "month": "2023-02",
+      "total_paid": 15394753399.57,
+      "total_claims": 259922326,
+      "total_beneficiaries": 159161069,
+      "row_count": 3083352,
+      "unique_billing_providers": 258452
+    },
+    {
+      "month": "2023-03",
+      "total_paid": 17668427237.5,
+      "total_claims": 298461892,
+      "total_beneficiaries": 181503538,
+      "row_count": 3432212,
+      "unique_billing_providers": 271651
+    },
+    {
+      "month": "2023-04",
+      "total_paid": 16091892914.07,
+      "total_claims": 265379484,
+      "total_beneficiaries": 160074705,
+      "row_count": 3125956,
+      "unique_billing_providers": 259681
+    },
+    {
+      "month": "2023-05",
+      "total_paid": 17280277362.92,
+      "total_claims": 287129748,
+      "total_beneficiaries": 173088160,
+      "row_count": 3355060,
+      "unique_billing_providers": 267084
+    },
+    {
+      "month": "2023-06",
+      "total_paid": 16029192012.87,
+      "total_claims": 261269038,
+      "total_beneficiaries": 159831609,
+      "row_count": 3151268,
+      "unique_billing_providers": 257278
+    },
+    {
+      "month": "2023-07",
+      "total_paid": 15725897305.96,
+      "total_claims": 246824756,
+      "total_beneficiaries": 149350862,
+      "row_count": 2974833,
+      "unique_billing_providers": 247411
+    },
+    {
+      "month": "2023-08",
+      "total_paid": 17348504365.58,
+      "total_claims": 279910801,
+      "total_beneficiaries": 172191912,
+      "row_count": 3365256,
+      "unique_billing_providers": 261549
+    },
+    {
+      "month": "2023-09",
+      "total_paid": 16361790144.5,
+      "total_claims": 259464154,
+      "total_beneficiaries": 157552161,
+      "row_count": 3123826,
+      "unique_billing_providers": 253825
+    },
+    {
+      "month": "2023-10",
+      "total_paid": 17484140655.95,
+      "total_claims": 276564708,
+      "total_beneficiaries": 167534255,
+      "row_count": 3297215,
+      "unique_billing_providers": 261465
+    },
+    {
+      "month": "2023-11",
+      "total_paid": 16663518408.74,
+      "total_claims": 259356081,
+      "total_beneficiaries": 156863590,
+      "row_count": 3112792,
+      "unique_billing_providers": 253968
+    },
+    {
+      "month": "2023-12",
+      "total_paid": 16152279164.09,
+      "total_claims": 243448023,
+      "total_beneficiaries": 146156238,
+      "row_count": 2901483,
+      "unique_billing_providers": 244184
+    },
+    {
+      "month": "2024-01",
+      "total_paid": 17783239324.27,
+      "total_claims": 272010590,
+      "total_beneficiaries": 162984803,
+      "row_count": 3184299,
+      "unique_billing_providers": 256264
+    },
+    {
+      "month": "2024-02",
+      "total_paid": 17169976799.3,
+      "total_claims": 266795878,
+      "total_beneficiaries": 160469214,
+      "row_count": 3137147,
+      "unique_billing_providers": 255035
+    },
+    {
+      "month": "2024-03",
+      "total_paid": 17501161887.45,
+      "total_claims": 264969435,
+      "total_beneficiaries": 158793817,
+      "row_count": 3098837,
+      "unique_billing_providers": 253950
+    },
+    {
+      "month": "2024-04",
+      "total_paid": 17396698624.1,
+      "total_claims": 267197354,
+      "total_beneficiaries": 160628916,
+      "row_count": 3130369,
+      "unique_billing_providers": 255881
+    },
+    {
+      "month": "2024-05",
+      "total_paid": 17580257320.49,
+      "total_claims": 262777836,
+      "total_beneficiaries": 157025310,
+      "row_count": 3071254,
+      "unique_billing_providers": 253766
+    },
+    {
+      "month": "2024-06",
+      "total_paid": 15770419278.26,
+      "total_claims": 228543520,
+      "total_beneficiaries": 137979972,
+      "row_count": 2732723,
+      "unique_billing_providers": 238627
+    },
+    {
+      "month": "2024-07",
+      "total_paid": 16423060106.69,
+      "total_claims": 242983356,
+      "total_beneficiaries": 146362442,
+      "row_count": 2859732,
+      "unique_billing_providers": 239909
+    },
+    {
+      "month": "2024-08",
+      "total_paid": 16347006139.25,
+      "total_claims": 246659583,
+      "total_beneficiaries": 152243897,
+      "row_count": 2955609,
+      "unique_billing_providers": 242152
+    },
+    {
+      "month": "2024-09",
+      "total_paid": 15626350800.43,
+      "total_claims": 233168618,
+      "total_beneficiaries": 143311522,
+      "row_count": 2819499,
+      "unique_billing_providers": 236868
+    },
+    {
+      "month": "2024-10",
+      "total_paid": 16310402111.53,
+      "total_claims": 244177082,
+      "total_beneficiaries": 150107391,
+      "row_count": 2936601,
+      "unique_billing_providers": 237918
+    },
+    {
+      "month": "2024-11",
+      "total_paid": 12874830358.75,
+      "total_claims": 183954822,
+      "total_beneficiaries": 112295024,
+      "row_count": 2274979,
+      "unique_billing_providers": 204539
+    },
+    {
+      "month": "2024-12",
+      "total_paid": 4199364318.95,
+      "total_claims": 63394189,
+      "total_beneficiaries": 40837668,
+      "row_count": 879619,
+      "unique_billing_providers": 117151
+    }
+  ],
+  "top_10_hcpcs_by_spending": [
+    {
+      "hcpcs_code": "T1019",
+      "total_paid": 122739547514.26,
+      "total_claims": 1100608370,
+      "total_beneficiaries": 55702849,
+      "row_count": 457916
+    },
+    {
+      "hcpcs_code": "T1015",
+      "total_paid": 49152668633.44,
+      "total_claims": 322233922,
+      "total_beneficiaries": 235393614,
+      "row_count": 2429393
+    },
+    {
+      "hcpcs_code": "T2016",
+      "total_paid": 34904936746.48,
+      "total_claims": 69000080,
+      "total_beneficiaries": 4389789,
+      "row_count": 81288
+    },
+    {
+      "hcpcs_code": "99213",
+      "total_paid": 33002827263.79,
+      "total_claims": 764306590,
+      "total_beneficiaries": 639378224,
+      "row_count": 13566914
+    },
+    {
+      "hcpcs_code": "S5125",
+      "total_paid": 31342185586.04,
+      "total_claims": 398071209,
+      "total_beneficiaries": 19413061,
+      "row_count": 214380
+    },
+    {
+      "hcpcs_code": "99214",
+      "total_paid": 29913857937.71,
+      "total_claims": 502480931,
+      "total_beneficiaries": 432874138,
+      "row_count": 11728025
+    },
+    {
+      "hcpcs_code": "99284",
+      "total_paid": 20151783534.42,
+      "total_claims": 170705529,
+      "total_beneficiaries": 154899942,
+      "row_count": 3980198
+    },
+    {
+      "hcpcs_code": "H2016",
+      "total_paid": 19747791724.79,
+      "total_claims": 60739036,
+      "total_beneficiaries": 4214296,
+      "row_count": 72289
+    },
+    {
+      "hcpcs_code": "99283",
+      "total_paid": 16874996865.61,
+      "total_claims": 157926994,
+      "total_beneficiaries": 144272501,
+      "row_count": 3270001
+    },
+    {
+      "hcpcs_code": "H2015",
+      "total_paid": 16470573872.77,
+      "total_claims": 109877296,
+      "total_beneficiaries": 20834363,
+      "row_count": 272463
+    }
+  ],
+  "top_10_providers_by_spending": [
+    {
+      "billing_npi": "1417262056",
+      "total_paid": 7177816544.46,
+      "total_claims": 89773441,
+      "total_beneficiaries": 5596134,
+      "row_count": 1872
+    },
+    {
+      "billing_npi": "1699703827",
+      "total_paid": 6778483867.35,
+      "total_claims": 30870976,
+      "total_beneficiaries": 10549232,
+      "row_count": 140183
+    },
+    {
+      "billing_npi": "1376609297",
+      "total_paid": 5571605313.0,
+      "total_claims": 63523750,
+      "total_beneficiaries": 3345513,
+      "row_count": 467
+    },
+    {
+      "billing_npi": "1699725143",
+      "total_paid": 3093063112.9,
+      "total_claims": 107716418,
+      "total_beneficiaries": 16440856,
+      "row_count": 37272
+    },
+    {
+      "billing_npi": "1922467554",
+      "total_paid": 3025874966.69,
+      "total_claims": 21977069,
+      "total_beneficiaries": 1186413,
+      "row_count": 207
+    },
+    {
+      "billing_npi": "1710176151",
+      "total_paid": 2683634591.67,
+      "total_claims": 35557539,
+      "total_beneficiaries": 2441087,
+      "row_count": 3842
+    },
+    {
+      "billing_npi": "1629436241",
+      "total_paid": 2596064454.98,
+      "total_claims": 16349155,
+      "total_beneficiaries": 1174610,
+      "row_count": 11672
+    },
+    {
+      "billing_npi": "1982757688",
+      "total_paid": 2254946211.7,
+      "total_claims": 1950098,
+      "total_beneficiaries": 594985,
+      "row_count": 13026
+    },
+    {
+      "billing_npi": "1538649983",
+      "total_paid": 2105798329.42,
+      "total_claims": 22162533,
+      "total_beneficiaries": 1069174,
+      "row_count": 257
+    },
+    {
+      "billing_npi": "1528263910",
+      "total_paid": 1728502977.19,
+      "total_claims": 4656205,
+      "total_beneficiaries": 1617142,
+      "row_count": 18617
+    }
+  ]
+}

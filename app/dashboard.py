@@ -20,6 +20,19 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from recession_project.config import DEFAULT_ALERT_THRESHOLD, FEATURE_DESCRIPTIONS, FEATURE_LABELS
+from recession_project.medicaid_analysis import (
+    compute_concentration_metrics,
+    compute_spending_categories,
+    compute_yoy_growth,
+    hcpcs_label,
+    load_doge_contracts,
+    load_doge_grants,
+    load_doge_payments,
+    load_medicaid_stats,
+    load_monthly_summary,
+    load_top_hcpcs,
+    load_top_providers,
+)
 
 ARTIFACT_DIR = ROOT / "artifacts"
 
@@ -2350,11 +2363,12 @@ def main() -> None:
     # -----------------------------------------------------------------------
     # TABS
     # -----------------------------------------------------------------------
-    tab1, tab2, tab3, tab7, tab4, tab5, tab6 = st.tabs([
+    tab1, tab2, tab3, tab7, tab8, tab4, tab5, tab6 = st.tabs([
         "Executive Summary",
         "Recessions: Then vs Now",
         "Florida Deep Dive",
         "Labor Market Deep Dive",
+        "HHS Medicaid (DOGE)",
         "How the Models Work",
         "Technical Details",
         "Action Center",
@@ -3124,6 +3138,334 @@ def main() -> None:
                 'The data to fix this already exists. It just needs to be connected and made public.'
                 '</div>',
                 unsafe_allow_html=True,
+            )
+
+    # ===================================================================
+    # TAB 8: HHS MEDICAID (DOGE) DEEP DIVE
+    # ===================================================================
+    with tab8:
+        st.caption(
+            "Analysis of HHS Medicaid provider spending data released via DOGE, "
+            "plus DOGE-tracked grants, contracts, and CMS payment data."
+        )
+
+        med_stats = load_medicaid_stats()
+        med_monthly = load_monthly_summary()
+        med_hcpcs = load_top_hcpcs()
+        med_providers = load_top_providers()
+        doge_payments = load_doge_payments()
+        doge_grants = load_doge_grants()
+        doge_contracts = load_doge_contracts()
+
+        if med_stats is None:
+            st.warning("Medicaid provider spending artifacts not found. Run the data pipeline first.")
+        else:
+            # --- Key metrics banner ---
+            st.subheader("Medicaid Provider Spending Overview")
+            st.markdown(
+                f"**Source:** [DOGE HHS Medicaid Provider Spending]"
+                f"({med_stats.get('source_url', '#')}) "
+                f"| **File size:** {med_stats.get('file_size_gb', '?')} GB "
+                f"| **Downloaded:** {med_stats.get('download_date', '?')}"
+            )
+
+            mcol1, mcol2, mcol3, mcol4 = st.columns(4)
+            total_paid_b = med_stats.get("total_paid_billions", 0)
+            mcol1.metric("Total Paid", f"${total_paid_b:,.1f}B")
+            mcol2.metric("Total Rows", f"{med_stats.get('total_rows', 0):,}")
+            mcol3.metric("Unique Providers", f"{med_stats.get('unique_billing_providers', 0):,}")
+            mcol4.metric("HCPCS Codes", f"{med_stats.get('unique_hcpcs_codes', 0):,}")
+
+            months = med_stats.get("months_covered", [])
+            if months:
+                st.markdown(f"**Coverage:** {months[0]} to {months[-1]} ({len(months)} months)")
+
+            # --- Monthly spending trend ---
+            if med_monthly is not None and not med_monthly.empty:
+                st.subheader("Monthly Spending Trend")
+                fig_monthly = go.Figure()
+                fig_monthly.add_trace(go.Scatter(
+                    x=med_monthly["month"],
+                    y=med_monthly["total_paid"] / 1e9,
+                    mode="lines+markers",
+                    name="Total Paid ($B)",
+                    line=dict(color="#1f77b4", width=2),
+                    marker=dict(size=4),
+                ))
+                fig_monthly.update_layout(
+                    title="Medicaid Provider Spending by Month",
+                    yaxis_title="Total Paid ($B)",
+                    xaxis_title="Month",
+                    height=400,
+                )
+                st.plotly_chart(fig_monthly, use_container_width=True, key="tab8_monthly_spend")
+
+                # YoY growth
+                yoy = compute_yoy_growth(med_monthly)
+                if not yoy.empty and len(yoy) > 1:
+                    fig_yoy = go.Figure()
+                    fig_yoy.add_trace(go.Bar(
+                        x=yoy["year"].astype(str),
+                        y=yoy["total_paid"] / 1e9,
+                        name="Annual Spending ($B)",
+                        marker_color="#1f77b4",
+                        text=[f"${v/1e9:.1f}B" for v in yoy["total_paid"]],
+                        textposition="outside",
+                    ))
+                    yoy_valid = yoy.dropna(subset=["yoy_growth"])
+                    if not yoy_valid.empty:
+                        fig_yoy.add_trace(go.Scatter(
+                            x=yoy_valid["year"].astype(str),
+                            y=yoy_valid["yoy_growth"],
+                            mode="lines+markers+text",
+                            name="YoY Growth %",
+                            yaxis="y2",
+                            line=dict(color="#ff6b35", width=2),
+                            text=[f"{v:+.1f}%" for v in yoy_valid["yoy_growth"]],
+                            textposition="top center",
+                        ))
+                    fig_yoy.update_layout(
+                        title="Annual Medicaid Spending & Growth",
+                        yaxis=dict(title="Total Paid ($B)"),
+                        yaxis2=dict(title="YoY Growth %", overlaying="y", side="right", showgrid=False),
+                        height=400,
+                        barmode="group",
+                    )
+                    st.plotly_chart(fig_yoy, use_container_width=True, key="tab8_yoy")
+
+                # Provider count trend
+                if "unique_billing_providers" in med_monthly.columns:
+                    fig_prov = go.Figure()
+                    fig_prov.add_trace(go.Scatter(
+                        x=med_monthly["month"],
+                        y=med_monthly["unique_billing_providers"],
+                        mode="lines",
+                        name="Active Billing Providers",
+                        line=dict(color="#2ecc71", width=2),
+                    ))
+                    fig_prov.update_layout(
+                        title="Active Billing Providers per Month",
+                        yaxis_title="Count",
+                        height=350,
+                    )
+                    st.plotly_chart(fig_prov, use_container_width=True, key="tab8_prov_trend")
+
+            # --- HCPCS spending breakdown ---
+            if med_hcpcs is not None and not med_hcpcs.empty:
+                st.subheader("Top Procedure Codes by Spending")
+                top_n = min(20, len(med_hcpcs))
+                top_codes = med_hcpcs.head(top_n).copy()
+                fig_hcpcs = go.Figure()
+                fig_hcpcs.add_trace(go.Bar(
+                    y=top_codes["label"].iloc[::-1],
+                    x=top_codes["total_paid"].iloc[::-1] / 1e9,
+                    orientation="h",
+                    marker_color="#1f77b4",
+                    text=[f"${v/1e9:.1f}B" for v in top_codes["total_paid"].iloc[::-1]],
+                    textposition="outside",
+                ))
+                fig_hcpcs.update_layout(
+                    title=f"Top {top_n} HCPCS Codes by Total Medicaid Spending",
+                    xaxis_title="Total Paid ($B)",
+                    height=max(400, top_n * 28),
+                    margin=dict(l=280),
+                )
+                st.plotly_chart(fig_hcpcs, use_container_width=True, key="tab8_hcpcs")
+
+                # Category pie chart
+                categories = compute_spending_categories(med_hcpcs)
+                if not categories.empty:
+                    fig_cat = go.Figure()
+                    fig_cat.add_trace(go.Pie(
+                        labels=categories["category"],
+                        values=categories["total_paid"],
+                        hole=0.4,
+                        textinfo="label+percent",
+                        textposition="outside",
+                    ))
+                    fig_cat.update_layout(
+                        title="Spending by Service Category",
+                        height=450,
+                    )
+                    st.plotly_chart(fig_cat, use_container_width=True, key="tab8_categories")
+
+                with st.expander("Full HCPCS Code Table"):
+                    display_df = med_hcpcs.head(100).copy()
+                    display_df["total_paid_fmt"] = display_df["total_paid"].apply(lambda v: f"${v/1e6:,.1f}M")
+                    display_df["total_claims_fmt"] = display_df["total_claims"].apply(lambda v: f"{v:,.0f}")
+                    st.dataframe(
+                        display_df[["label", "category", "total_paid_fmt", "total_claims_fmt", "total_beneficiaries"]].rename(
+                            columns={"label": "Code", "category": "Category", "total_paid_fmt": "Total Paid",
+                                     "total_claims_fmt": "Total Claims", "total_beneficiaries": "Beneficiaries"}
+                        ),
+                        use_container_width=True,
+                        height=500,
+                    )
+
+            # --- Provider concentration ---
+            if med_providers is not None and not med_providers.empty:
+                st.subheader("Provider Spending Concentration")
+
+                conc = compute_concentration_metrics(med_providers)
+                if conc:
+                    ccol1, ccol2, ccol3 = st.columns(3)
+                    ccol1.metric("Top 10 Providers", f"{conc.get('top_10_pct', 0):.1f}% of total")
+                    ccol2.metric("Top 50 Providers", f"{conc.get('top_50_pct', 0):.1f}% of total")
+                    ccol3.metric("Top 100 Providers", f"{conc.get('top_100_pct', 0):.1f}% of total")
+
+                # Cumulative spending curve (Lorenz-like)
+                prov_sorted = med_providers.sort_values("total_paid", ascending=False).reset_index(drop=True)
+                prov_sorted["cumulative_paid"] = prov_sorted["total_paid"].cumsum()
+                prov_sorted["cumulative_pct"] = prov_sorted["cumulative_paid"] / prov_sorted["total_paid"].sum() * 100
+                prov_sorted["provider_rank_pct"] = (prov_sorted.index + 1) / len(prov_sorted) * 100
+
+                fig_lorenz = go.Figure()
+                fig_lorenz.add_trace(go.Scatter(
+                    x=prov_sorted["provider_rank_pct"],
+                    y=prov_sorted["cumulative_pct"],
+                    mode="lines",
+                    name="Cumulative Spending",
+                    line=dict(color="#e74c3c", width=2),
+                    fill="tozeroy",
+                    fillcolor="rgba(231, 76, 60, 0.1)",
+                ))
+                fig_lorenz.add_trace(go.Scatter(
+                    x=[0, 100], y=[0, 100],
+                    mode="lines",
+                    name="Equal Distribution",
+                    line=dict(color="#95a5a6", dash="dash"),
+                ))
+                fig_lorenz.update_layout(
+                    title="Provider Spending Concentration (Lorenz Curve)",
+                    xaxis_title="Cumulative % of Providers (ranked by spending)",
+                    yaxis_title="Cumulative % of Total Spending",
+                    height=400,
+                )
+                st.plotly_chart(fig_lorenz, use_container_width=True, key="tab8_lorenz")
+
+                with st.expander("Top 50 Providers by Spending"):
+                    top50 = med_providers.head(50).copy()
+                    top50["total_paid_fmt"] = top50["total_paid"].apply(lambda v: f"${v/1e6:,.1f}M")
+                    top50["claims_fmt"] = top50["total_claims"].apply(lambda v: f"{v:,.0f}")
+                    top50["cost_per_claim"] = (top50["total_paid"] / top50["total_claims"].clip(lower=1)).apply(lambda v: f"${v:,.0f}")
+                    st.dataframe(
+                        top50[["billing_npi", "total_paid_fmt", "claims_fmt", "total_beneficiaries", "cost_per_claim"]].rename(
+                            columns={"billing_npi": "NPI", "total_paid_fmt": "Total Paid",
+                                     "claims_fmt": "Total Claims", "total_beneficiaries": "Beneficiaries",
+                                     "cost_per_claim": "Cost/Claim"}
+                        ),
+                        use_container_width=True,
+                        height=500,
+                    )
+
+            # --- DOGE Spending Actions ---
+            st.subheader("DOGE Actions on HHS")
+
+            doge_col1, doge_col2, doge_col3 = st.columns(3)
+
+            if doge_payments is not None and not doge_payments.empty:
+                cms_total = doge_payments["payment_amt"].sum() if "payment_amt" in doge_payments.columns else 0
+                doge_col1.metric("CMS Payments Tracked", f"{len(doge_payments):,}", delta=f"${cms_total/1e9:.2f}B total")
+            else:
+                doge_col1.metric("CMS Payments Tracked", "N/A")
+
+            if doge_grants is not None and not doge_grants.empty:
+                grants_savings = doge_grants["savings"].sum() if "savings" in doge_grants.columns else 0
+                doge_col2.metric("HHS Grants Terminated", f"{len(doge_grants):,}", delta=f"${grants_savings/1e9:.1f}B savings claimed")
+            else:
+                doge_col2.metric("HHS Grants Terminated", "N/A")
+
+            if doge_contracts is not None and not doge_contracts.empty:
+                contracts_savings = doge_contracts["savings"].sum() if "savings" in doge_contracts.columns else 0
+                doge_col3.metric("HHS Contracts Terminated", f"{len(doge_contracts):,}", delta=f"${contracts_savings/1e9:.1f}B savings claimed")
+            else:
+                doge_col3.metric("HHS Contracts Terminated", "N/A")
+
+            # Grants by recipient (top)
+            if doge_grants is not None and not doge_grants.empty and "savings" in doge_grants.columns:
+                top_grants = doge_grants.nlargest(15, "savings").copy()
+                fig_grants = go.Figure()
+                fig_grants.add_trace(go.Bar(
+                    y=top_grants["recipient"].iloc[::-1],
+                    x=top_grants["savings"].iloc[::-1] / 1e6,
+                    orientation="h",
+                    marker_color="#ff6b35",
+                    text=[f"${v/1e6:.0f}M" for v in top_grants["savings"].iloc[::-1]],
+                    textposition="outside",
+                ))
+                fig_grants.update_layout(
+                    title="Top 15 HHS Grant Terminations by DOGE (Claimed Savings)",
+                    xaxis_title="Savings ($M)",
+                    height=500,
+                    margin=dict(l=350),
+                )
+                st.plotly_chart(fig_grants, use_container_width=True, key="tab8_doge_grants")
+
+            # --- Analysis Summary ---
+            st.subheader("Key Findings")
+            findings = []
+
+            if med_stats:
+                total_b = med_stats.get("total_paid_billions", 0)
+                months_list = med_stats.get("months_covered", [])
+                n_providers = med_stats.get("unique_billing_providers", 0)
+                findings.append(
+                    f"**Scale:** The dataset covers **${total_b:,.1f}B** in Medicaid provider spending "
+                    f"across **{len(months_list)} months** ({months_list[0] if months_list else '?'} to "
+                    f"{months_list[-1] if months_list else '?'}), from **{n_providers:,}** unique billing providers."
+                )
+
+            if med_hcpcs is not None and not med_hcpcs.empty:
+                top_code = med_hcpcs.iloc[0]
+                top_pct = top_code["total_paid"] / med_hcpcs["total_paid"].sum() * 100
+                findings.append(
+                    f"**Top service:** {hcpcs_label(top_code['hcpcs_code'])} dominates at "
+                    f"**${top_code['total_paid']/1e9:.1f}B** ({top_pct:.1f}% of tracked spending). "
+                    f"Home health and personal care codes represent the largest spending category."
+                )
+
+            if med_monthly is not None and not med_monthly.empty:
+                full_months = med_monthly[med_monthly["total_paid"] > 1e9]
+                if len(full_months) >= 13:
+                    earliest = full_months.iloc[0]["total_paid"]
+                    latest_full = full_months.iloc[-2]["total_paid"] if len(full_months) > 1 else full_months.iloc[-1]["total_paid"]
+                    growth = (latest_full / earliest - 1) * 100
+                    findings.append(
+                        f"**Growth trend:** Monthly spending grew from **${earliest/1e9:.1f}B** to "
+                        f"**${latest_full/1e9:.1f}B** ({growth:+.0f}%) over the coverage period. "
+                        f"Both provider counts and per-provider spending have increased."
+                    )
+
+            if conc:
+                findings.append(
+                    f"**Concentration:** The top 10 providers account for **{conc.get('top_10_pct', 0):.1f}%** of total spending "
+                    f"(${conc.get('top_10_amount', 0)/1e9:.1f}B). The top 1% of providers drive roughly a third of all payments, "
+                    f"indicating high spending concentration."
+                )
+
+            findings.append(
+                "**Anomaly flags:** HCPCS code J2326 (Nusinersen/Spinraza, a gene therapy for spinal muscular atrophy) "
+                "shows costs exceeding **$150,000 per beneficiary** per month. While clinically expected for specialty drugs, "
+                "these outliers represent high-cost, low-volume spending worth monitoring."
+            )
+
+            if doge_grants is not None and not doge_grants.empty:
+                grants_total_val = doge_grants["value"].sum() if "value" in doge_grants.columns else 0
+                grants_savings_val = doge_grants["savings"].sum() if "savings" in doge_grants.columns else 0
+                findings.append(
+                    f"**DOGE grant actions:** {len(doge_grants):,} HHS grants terminated with "
+                    f"**${grants_savings_val/1e9:.1f}B** in claimed savings (from ${grants_total_val/1e9:.1f}B total value). "
+                    f"The majority target CDC epidemiology/lab capacity and immunization programs."
+                )
+
+            for f in findings:
+                st.markdown(f"- {f}")
+
+            st.caption(
+                "Data sources: DOGE API (api.doge.gov) for grants, contracts, and CMS payments; "
+                "DOGE HHS Medicaid Provider Spending dataset (stopendataprod.blob.core.windows.net). "
+                "Analysis performed on full dataset streamed from source. "
+                "Provider NPIs shown are billing identifiers; individual provider names require NPI registry lookup."
             )
 
     # ===================================================================
