@@ -22,6 +22,7 @@ if str(SRC) not in sys.path:
 from recession_project.config import DEFAULT_ALERT_THRESHOLD, FEATURE_DESCRIPTIONS, FEATURE_LABELS
 from recession_project.medicaid_analysis import (
     compute_concentration_metrics,
+    compute_fraud_signals,
     compute_spending_categories,
     compute_yoy_growth,
     hcpcs_label,
@@ -30,6 +31,11 @@ from recession_project.medicaid_analysis import (
     load_doge_payments,
     load_medicaid_stats,
     load_monthly_summary,
+    load_named_providers,
+    load_pbc_hcpcs,
+    load_pbc_monthly,
+    load_pbc_providers,
+    load_pbc_stats,
     load_top_hcpcs,
     load_top_providers,
 )
@@ -3343,20 +3349,40 @@ def main() -> None:
                 )
                 st.plotly_chart(fig_lorenz, use_container_width=True, key="tab8_lorenz")
 
+                # Show named providers if available, else fall back to NPI-only
+                named_providers = load_named_providers()
                 with st.expander("Top 50 Providers by Spending"):
-                    top50 = med_providers.head(50).copy()
-                    top50["total_paid_fmt"] = top50["total_paid"].apply(lambda v: f"${v/1e6:,.1f}M")
-                    top50["claims_fmt"] = top50["total_claims"].apply(lambda v: f"{v:,.0f}")
-                    top50["cost_per_claim"] = (top50["total_paid"] / top50["total_claims"].clip(lower=1)).apply(lambda v: f"${v:,.0f}")
-                    st.dataframe(
-                        top50[["billing_npi", "total_paid_fmt", "claims_fmt", "total_beneficiaries", "cost_per_claim"]].rename(
-                            columns={"billing_npi": "NPI", "total_paid_fmt": "Total Paid",
-                                     "claims_fmt": "Total Claims", "total_beneficiaries": "Beneficiaries",
-                                     "cost_per_claim": "Cost/Claim"}
-                        ),
-                        use_container_width=True,
-                        height=500,
-                    )
+                    if named_providers is not None and not named_providers.empty:
+                        np50 = named_providers.head(50).copy()
+                        np50["total_paid_fmt"] = np50["total_paid"].apply(lambda v: f"${v/1e6:,.1f}M")
+                        np50["claims_fmt"] = np50["total_claims"].apply(lambda v: f"{v:,.0f}")
+                        np50["cost_per_claim_fmt"] = np50["cost_per_claim"].apply(lambda v: f"${v:,.0f}")
+                        np50["cost_per_bene_fmt"] = np50["cost_per_beneficiary"].apply(lambda v: f"${v:,.0f}")
+                        st.dataframe(
+                            np50[["name", "city", "state", "npi", "total_paid_fmt", "claims_fmt",
+                                  "total_beneficiaries", "cost_per_claim_fmt", "cost_per_bene_fmt"]].rename(
+                                columns={"name": "Provider", "city": "City", "state": "ST", "npi": "NPI",
+                                         "total_paid_fmt": "Total Paid", "claims_fmt": "Claims",
+                                         "total_beneficiaries": "Beneficiaries",
+                                         "cost_per_claim_fmt": "$/Claim", "cost_per_bene_fmt": "$/Beneficiary"}
+                            ),
+                            use_container_width=True,
+                            height=500,
+                        )
+                    else:
+                        top50 = med_providers.head(50).copy()
+                        top50["total_paid_fmt"] = top50["total_paid"].apply(lambda v: f"${v/1e6:,.1f}M")
+                        top50["claims_fmt"] = top50["total_claims"].apply(lambda v: f"{v:,.0f}")
+                        top50["cost_per_claim"] = (top50["total_paid"] / top50["total_claims"].clip(lower=1)).apply(lambda v: f"${v:,.0f}")
+                        st.dataframe(
+                            top50[["billing_npi", "total_paid_fmt", "claims_fmt", "total_beneficiaries", "cost_per_claim"]].rename(
+                                columns={"billing_npi": "NPI", "total_paid_fmt": "Total Paid",
+                                         "claims_fmt": "Total Claims", "total_beneficiaries": "Beneficiaries",
+                                         "cost_per_claim": "Cost/Claim"}
+                            ),
+                            use_container_width=True,
+                            height=500,
+                        )
 
             # --- DOGE Spending Actions ---
             st.subheader("DOGE Actions on HHS")
@@ -3461,11 +3487,158 @@ def main() -> None:
             for f in findings:
                 st.markdown(f"- {f}")
 
+            # --- Palm Beach County Deep Dive ---
+            st.markdown("---")
+            st.subheader("Palm Beach County Deep Dive")
+            pbc_stats = load_pbc_stats()
+            pbc_monthly = load_pbc_monthly()
+            pbc_hcpcs = load_pbc_hcpcs()
+            pbc_providers = load_pbc_providers()
+
+            if pbc_stats is None:
+                st.info("Palm Beach County data not yet available. Run the PBC analysis pipeline to generate.")
+            else:
+                pcol1, pcol2, pcol3, pcol4 = st.columns(4)
+                pbc_paid_m = pbc_stats.get("pbc_total_paid_millions", 0)
+                pcol1.metric("PBC Total Paid", f"${pbc_paid_m:,.1f}M")
+                pcol2.metric("PBC Rows", f"{pbc_stats.get('pbc_rows', 0):,}")
+                pcol3.metric("PBC Providers", f"{pbc_stats.get('unique_providers', 0):,}")
+                pcol4.metric("PBC HCPCS Codes", f"{pbc_stats.get('unique_hcpcs_codes', 0):,}")
+
+                # Monthly trend for PBC
+                if pbc_monthly is not None and not pbc_monthly.empty:
+                    fig_pbc_monthly = go.Figure()
+                    fig_pbc_monthly.add_trace(go.Scatter(
+                        x=pbc_monthly["month"],
+                        y=pbc_monthly["total_paid"] / 1e6,
+                        mode="lines+markers",
+                        name="PBC Total Paid ($M)",
+                        line=dict(color="#e74c3c", width=2),
+                        marker=dict(size=4),
+                    ))
+                    fig_pbc_monthly.update_layout(
+                        title="Palm Beach County Medicaid Spending by Month",
+                        yaxis_title="Total Paid ($M)",
+                        height=400,
+                    )
+                    st.plotly_chart(fig_pbc_monthly, use_container_width=True, key="tab8_pbc_monthly")
+
+                # Top HCPCS for PBC
+                if pbc_hcpcs is not None and not pbc_hcpcs.empty:
+                    top_pbc_codes = pbc_hcpcs.head(15).copy()
+                    fig_pbc_hcpcs = go.Figure()
+                    fig_pbc_hcpcs.add_trace(go.Bar(
+                        y=top_pbc_codes["label"].iloc[::-1],
+                        x=top_pbc_codes["total_paid"].iloc[::-1] / 1e6,
+                        orientation="h",
+                        marker_color="#e74c3c",
+                        text=[f"${v/1e6:.1f}M" for v in top_pbc_codes["total_paid"].iloc[::-1]],
+                        textposition="outside",
+                    ))
+                    fig_pbc_hcpcs.update_layout(
+                        title="Top 15 Procedure Codes — Palm Beach County",
+                        xaxis_title="Total Paid ($M)",
+                        height=480,
+                        margin=dict(l=280),
+                    )
+                    st.plotly_chart(fig_pbc_hcpcs, use_container_width=True, key="tab8_pbc_hcpcs")
+
+                # Provider table with names and fraud signals
+                if pbc_providers is not None and not pbc_providers.empty:
+                    st.subheader("Palm Beach County Providers — Fraud Signal Analysis")
+                    st.markdown(
+                        "Providers flagged by multiple statistical signals. **Flags are not accusations** — "
+                        "they identify spending patterns that deviate significantly from peers and warrant review."
+                    )
+                    pbc_flagged = compute_fraud_signals(pbc_providers)
+
+                    if not pbc_flagged.empty:
+                        # Show top flagged providers
+                        flag_cols = [c for c in pbc_flagged.columns if c.startswith("flag_")]
+                        n_flagged = (pbc_flagged["fraud_signal_count"] >= 2).sum()
+                        fcol1, fcol2, fcol3 = st.columns(3)
+                        fcol1.metric("Providers with 2+ Flags", f"{n_flagged:,}")
+                        fcol2.metric("Providers with 3+ Flags", f"{(pbc_flagged['fraud_signal_count'] >= 3).sum():,}")
+                        high_flag_total = pbc_flagged[pbc_flagged["fraud_signal_count"] >= 2]["total_paid"].sum()
+                        fcol3.metric("Flagged Spending", f"${high_flag_total/1e6:,.1f}M")
+
+                        # Bar chart of top flagged providers by name
+                        top_flagged = pbc_flagged[pbc_flagged["fraud_signal_count"] >= 2].head(25).copy()
+                        if not top_flagged.empty and "provider_name" in top_flagged.columns:
+                            top_flagged["display_name"] = top_flagged.apply(
+                                lambda r: f"{r['provider_name'][:40]} ({r['city']})" if pd.notna(r.get("city")) and r.get("city") else r["provider_name"][:45],
+                                axis=1,
+                            )
+                            fig_flagged = go.Figure()
+                            fig_flagged.add_trace(go.Bar(
+                                y=top_flagged["display_name"].iloc[::-1],
+                                x=top_flagged["total_paid"].iloc[::-1] / 1e6,
+                                orientation="h",
+                                marker_color=[
+                                    "#d62728" if s >= 3 else "#ff7f0e" for s in top_flagged["fraud_signal_count"].iloc[::-1]
+                                ],
+                                text=[
+                                    f"${v/1e6:.1f}M | {int(f)} flags"
+                                    for v, f in zip(top_flagged["total_paid"].iloc[::-1], top_flagged["fraud_signal_count"].iloc[::-1])
+                                ],
+                                textposition="outside",
+                            ))
+                            fig_flagged.update_layout(
+                                title="Palm Beach County — Top Flagged Providers (2+ signals)",
+                                xaxis_title="Total Paid ($M)",
+                                height=max(400, len(top_flagged) * 28),
+                                margin=dict(l=350),
+                            )
+                            st.plotly_chart(fig_flagged, use_container_width=True, key="tab8_pbc_flagged")
+
+                    # Full provider table
+                    with st.expander("All Palm Beach County Providers (sorted by spending)"):
+                        pbc_display = pbc_flagged.head(200).copy() if not pbc_flagged.empty else pbc_providers.head(200).copy()
+                        display_cols = ["provider_name", "city", "billing_npi"]
+                        pbc_display["total_paid_fmt"] = pbc_display["total_paid"].apply(lambda v: f"${v/1e6:,.2f}M" if v >= 1e6 else f"${v:,.0f}")
+                        pbc_display["claims_fmt"] = pbc_display["total_claims"].apply(lambda v: f"{v:,.0f}")
+                        pbc_display["cpc_fmt"] = pbc_display["cost_per_claim"].apply(lambda v: f"${v:,.0f}")
+                        pbc_display["cpb_fmt"] = pbc_display["cost_per_beneficiary"].apply(lambda v: f"${v:,.0f}")
+                        show_cols = ["provider_name", "city", "billing_npi", "total_paid_fmt", "claims_fmt",
+                                     "total_beneficiaries", "cpc_fmt", "cpb_fmt"]
+                        rename_map = {"provider_name": "Provider", "city": "City", "billing_npi": "NPI",
+                                      "total_paid_fmt": "Total Paid", "claims_fmt": "Claims",
+                                      "total_beneficiaries": "Beneficiaries", "cpc_fmt": "$/Claim",
+                                      "cpb_fmt": "$/Beneficiary"}
+                        if "fraud_signal_count" in pbc_display.columns:
+                            show_cols.append("fraud_signal_count")
+                            rename_map["fraud_signal_count"] = "Flags"
+                        available_cols = [c for c in show_cols if c in pbc_display.columns]
+                        st.dataframe(
+                            pbc_display[available_cols].rename(columns=rename_map),
+                            use_container_width=True,
+                            height=600,
+                        )
+
+                    # Fraud signal explanation
+                    with st.expander("What do the fraud signals mean?"):
+                        st.markdown("""
+**Fraud signals** are statistical flags that identify providers whose billing patterns differ
+significantly from their peers. They do **not** prove fraud — they identify patterns that merit
+further investigation.
+
+| Signal | What It Measures | Why It Matters |
+|--------|-----------------|----------------|
+| **High Cost/Claim** | Average payment per claim > 95th percentile | May indicate upcoding or billing for more expensive services than provided |
+| **High Cost/Beneficiary** | Total spending per patient > 95th percentile | Could suggest unnecessary services or phantom patients |
+| **High Claims/Beneficiary** | Number of claims per patient > 95th percentile | May indicate service unbundling or excessive utilization |
+| **Low Code Diversity** | Only 1-2 procedure codes used | Highly specialized billing can indicate a narrow fraud scheme |
+
+Providers with **3+ flags** warrant the highest priority for review. A single flag alone is
+usually explainable by legitimate specialty practices.
+""")
+
             st.caption(
                 "Data sources: DOGE API (api.doge.gov) for grants, contracts, and CMS payments; "
                 "DOGE HHS Medicaid Provider Spending dataset (stopendataprod.blob.core.windows.net). "
-                "Analysis performed on full dataset streamed from source. "
-                "Provider NPIs shown are billing identifiers; individual provider names require NPI registry lookup."
+                "Analysis performed on full 10.3GB dataset (227M rows) streamed from source. "
+                "Provider names resolved via CMS NPPES NPI Registry (npiregistry.cms.hhs.gov). "
+                "Palm Beach County providers identified by cross-referencing 16,500+ NPIs from NPPES."
             )
 
     # ===================================================================
