@@ -23,6 +23,7 @@ from recession_project.config import DEFAULT_ALERT_THRESHOLD, FEATURE_DESCRIPTIO
 from recession_project.ambassador_investigation import (
     build_investigation_report,
     generate_referral_text,
+    generate_referral_docx,
     AmbassadorFraudReport,
     AMBASSADOR_KNOWN_HCPCS,
     _REFERRAL_AGENCIES,
@@ -3832,13 +3833,24 @@ usually explainable by legitimate specialty practices.
                 referral_text = generate_referral_text(amb_report, selected_agency_key)
                 with st.expander("Preview Referral Document"):
                     st.text(referral_text)
-                st.download_button(
-                    label="Download Referral Report (.txt)",
-                    data=referral_text,
-                    file_name="ambassador_health_referral.txt",
-                    mime="text/plain",
-                    key="amb_referral_download",
-                )
+                dl_col1, dl_col2 = st.columns(2)
+                with dl_col1:
+                    docx_bytes = generate_referral_docx(amb_report, selected_agency_key)
+                    st.download_button(
+                        label="Download Referral (.docx)",
+                        data=docx_bytes,
+                        file_name="ambassador_health_referral.docx",
+                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        key="amb_referral_download_docx",
+                    )
+                with dl_col2:
+                    st.download_button(
+                        label="Download Referral (.txt)",
+                        data=referral_text,
+                        file_name="ambassador_health_referral.txt",
+                        mime="text/plain",
+                        key="amb_referral_download_txt",
+                    )
 
             except Exception as exc:
                 st.info(f"Ambassador investigation not available: {exc}")

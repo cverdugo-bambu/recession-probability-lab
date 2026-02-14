@@ -562,6 +562,297 @@ def save_referral(report: AmbassadorFraudReport, agency_key: str = "FL_MFCU", pa
     return path
 
 
+def generate_referral_docx(report: AmbassadorFraudReport, agency_key: str = "FL_MFCU") -> bytes:
+    """Generate a Word (.docx) referral document and return raw bytes.
+
+    Returns bytes so it can be used directly with ``st.download_button``.
+    """
+    from io import BytesIO
+
+    from docx import Document
+    from docx.shared import Inches, Pt, RGBColor
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.enum.table import WD_TABLE_ALIGNMENT
+
+    agency = _REFERRAL_AGENCIES.get(agency_key, _REFERRAL_AGENCIES["FL_MFCU"])
+    today = date.today().strftime("%B %d, %Y")
+    doc = Document()
+
+    # -- styles ---------------------------------------------------------------
+    style = doc.styles["Normal"]
+    style.font.name = "Calibri"
+    style.font.size = Pt(11)
+    style.paragraph_format.space_after = Pt(4)
+
+    def _heading(text: str, level: int = 1) -> None:
+        h = doc.add_heading(text, level=level)
+        for run in h.runs:
+            run.font.color.rgb = RGBColor(0x1A, 0x1A, 0x2E)
+
+    def _bold_para(label: str, value: str) -> None:
+        p = doc.add_paragraph()
+        r = p.add_run(label)
+        r.bold = True
+        p.add_run(value)
+
+    # -- title page -----------------------------------------------------------
+    title = doc.add_heading("FORMAL REFERRAL FOR INVESTIGATION", level=0)
+    title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    sub = doc.add_paragraph("Suspected Medicaid Fraud — Ambassador Health Services Network")
+    sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    sub.runs[0].font.size = Pt(14)
+    sub.runs[0].font.color.rgb = RGBColor(0xD6, 0x27, 0x28)
+
+    doc.add_paragraph("")
+    _bold_para("Date: ", today)
+    _bold_para("To: ", agency["name"])
+    doc.add_paragraph(f"    {agency['address']}")
+    doc.add_paragraph(f"    Phone: {agency['phone']}")
+    doc.add_paragraph("")
+    _bold_para("RE: ", "Referral for Investigation of Suspected Medicaid Fraud")
+    _bold_para("Subject: ", "Ambassador Health Services / Ambassador Home Health Services")
+    _bold_para("State: ", "Florida")
+    _bold_para("Aggregate Medicaid Payments: ", f"${report.total_paid:,.2f}")
+    _bold_para("Number of Provider Entities (NPIs): ", str(report.entity_count))
+    _bold_para("Applicable Law: ", agency["authority"])
+
+    # -- 1. Executive Summary -------------------------------------------------
+    _heading("1. Executive Summary", level=1)
+    doc.add_paragraph(
+        f"This referral presents data-driven evidence of potential Medicaid billing fraud "
+        f"by a network of {report.entity_count} provider entities operating under the "
+        f'"Ambassador Health Services" and "Ambassador Home Health Services" brand names '
+        f"across {len(report.unique_cities)} cities in Florida."
+    )
+    doc.add_paragraph(
+        f"These entities have collectively billed Florida Medicaid ${report.total_paid:,.2f} "
+        f"(approximately ${report.total_paid / 1e6:,.1f} million). Statistical analysis of "
+        f"publicly available Medicaid provider spending data reveals that every Ambassador "
+        f"entity exhibits multiple fraud indicators that substantially deviate from peer "
+        f"provider norms."
+    )
+    doc.add_paragraph(
+        "The pattern of multiple separate NPIs under a common brand, combined with extreme "
+        "billing metrics and minimal service code diversity, is consistent with a coordinated "
+        "billing scheme designed to maximize payments while avoiding per-entity audit thresholds."
+    )
+
+    # -- 2. Subject Entities (table) ------------------------------------------
+    _heading("2. Subject Entities", level=1)
+    doc.add_paragraph(
+        f"The following {report.entity_count} National Provider Identifiers (NPIs) were "
+        f"identified as operating under the Ambassador brand:"
+    )
+
+    cols = ["NPI", "Provider Name", "City", "Total Paid", "Claims",
+            "Beneficiaries", "$/Claim", "$/Bene", "Claims/Bene", "HCPCS", "Flags"]
+    table = doc.add_table(rows=1, cols=len(cols))
+    table.style = "Light Grid Accent 1"
+    table.alignment = WD_TABLE_ALIGNMENT.CENTER
+    hdr = table.rows[0].cells
+    for i, col_name in enumerate(cols):
+        hdr[i].text = col_name
+        for p in hdr[i].paragraphs:
+            for run in p.runs:
+                run.bold = True
+                run.font.size = Pt(8)
+
+    for _, row in report.entities.sort_values("total_paid", ascending=False).iterrows():
+        cells = table.add_row().cells
+        values = [
+            str(row["billing_npi"]),
+            str(row["provider_name"])[:30],
+            str(row["city"]),
+            f"${row['total_paid']:,.0f}",
+            f"{int(row['total_claims']):,}",
+            f"{int(row['total_beneficiaries']):,}",
+            f"${row['cost_per_claim']:,.0f}",
+            f"${row['cost_per_beneficiary']:,.0f}",
+            f"{row['claims_per_beneficiary']:.1f}",
+            str(int(row["unique_hcpcs_codes"])),
+            f"{int(row['fraud_signal_count'])}/4",
+        ]
+        for i, val in enumerate(values):
+            cells[i].text = val
+            for p in cells[i].paragraphs:
+                for run in p.runs:
+                    run.font.size = Pt(8)
+
+    doc.add_paragraph(f"\nCities: {', '.join(report.unique_cities)}")
+
+    # -- 3. HCPCS Codes -------------------------------------------------------
+    _heading("3. HCPCS Codes Billed", level=1)
+    doc.add_paragraph(
+        "The Ambassador entities predominantly bill the following home health nursing codes. "
+        "Claim-level sample data confirms S9124 usage; the extremely low code diversity "
+        "(6 of 9 entities bill only 1-2 codes) suggests near-exclusive reliance on these codes:"
+    )
+    for code, info in AMBASSADOR_KNOWN_HCPCS.items():
+        confirmed = info.get("confirmed_npis", [])
+        status = (
+            f"Confirmed via claim-level data for NPIs {', '.join(confirmed)}"
+            if confirmed
+            else info.get("note", "Probable")
+        )
+        _bold_para(f"{code}: ", f"{info['description']} ({info['category']}) — {status}")
+
+    doc.add_paragraph(
+        "S9124 is the single highest-spending HCPCS code in Palm Beach County at "
+        "$187.97 million across all providers."
+    )
+
+    # -- 4. Statistical Fraud Indicators --------------------------------------
+    _heading("4. Statistical Fraud Indicators", level=1)
+    peers = report.peer_comparison
+
+    flag_labels = {
+        "flag_high_cost_per_claim": "Cost per claim exceeds 95th percentile",
+        "flag_high_cost_per_beneficiary": "Cost per beneficiary exceeds 95th percentile",
+        "flag_high_claims_per_beneficiary": "Claims per beneficiary exceeds 95th percentile",
+        "flag_low_code_diversity": "Billing only 1-2 HCPCS codes (low service diversity)",
+    }
+
+    ft = doc.add_table(rows=1, cols=3)
+    ft.style = "Light Grid Accent 1"
+    ft.alignment = WD_TABLE_ALIGNMENT.CENTER
+    fhdr = ft.rows[0].cells
+    for i, h in enumerate(["Signal", "Entities Flagged", "Rate"]):
+        fhdr[i].text = h
+        for p in fhdr[i].paragraphs:
+            for run in p.runs:
+                run.bold = True
+                run.font.size = Pt(9)
+    for flag_col, count in report.flags_summary.items():
+        r = ft.add_row().cells
+        r[0].text = flag_labels.get(flag_col, flag_col)
+        r[1].text = f"{count} / {report.entity_count}"
+        r[2].text = f"{count / report.entity_count * 100:.0f}%"
+        for cell in r:
+            for p in cell.paragraphs:
+                for run in p.runs:
+                    run.font.size = Pt(9)
+
+    doc.add_paragraph("")
+    _heading("Peer Benchmarks", level=2)
+    benchmarks = [
+        ("Median cost/claim", f"${peers['median_cost_per_claim']:,.2f}",
+         f"${report.entities['cost_per_claim'].mean():,.2f}"),
+        ("95th pctl cost/claim", f"${peers['p95_cost_per_claim']:,.2f}", "—"),
+        ("Median cost/beneficiary", f"${peers['median_cost_per_beneficiary']:,.2f}",
+         f"${report.entities['cost_per_beneficiary'].mean():,.2f}"),
+        ("95th pctl cost/beneficiary", f"${peers['p95_cost_per_beneficiary']:,.2f}", "—"),
+        ("Median claims/beneficiary", f"{peers['median_claims_per_beneficiary']:.1f}",
+         f"{report.entities['claims_per_beneficiary'].mean():.1f}"),
+        ("95th pctl claims/beneficiary", f"{peers['p95_claims_per_beneficiary']:.1f}", "—"),
+    ]
+    bt = doc.add_table(rows=1, cols=3)
+    bt.style = "Light Grid Accent 1"
+    bt.alignment = WD_TABLE_ALIGNMENT.CENTER
+    bhdr = bt.rows[0].cells
+    for i, h in enumerate(["Metric", "All Providers", "Ambassador Avg"]):
+        bhdr[i].text = h
+        for p in bhdr[i].paragraphs:
+            for run in p.runs:
+                run.bold = True
+                run.font.size = Pt(9)
+    for label, all_val, amb_val in benchmarks:
+        r = bt.add_row().cells
+        r[0].text = label
+        r[1].text = all_val
+        r[2].text = amb_val
+        for cell in r:
+            for p in cell.paragraphs:
+                for run in p.runs:
+                    run.font.size = Pt(9)
+
+    # -- 5. Red Flags ---------------------------------------------------------
+    _heading("5. Red Flags — Detailed Findings", level=1)
+    for i, flag in enumerate(report.red_flags, 1):
+        parts = flag.split(":", 1)
+        if len(parts) == 2:
+            p = doc.add_paragraph()
+            r = p.add_run(f"{i}. {parts[0]}:")
+            r.bold = True
+            r.font.color.rgb = RGBColor(0xD6, 0x27, 0x28)
+            p.add_run(parts[1])
+        else:
+            doc.add_paragraph(f"{i}. {flag}")
+
+    # -- 6. Data Sources ------------------------------------------------------
+    _heading("6. Data Sources and Methodology", level=1)
+    _heading("Data Source", level=2)
+    for line in [
+        "HHS Medicaid Provider Spending data released via the Department of Government Efficiency (DOGE)",
+        "Full dataset: approximately 227 million rows, 10.3 GB",
+        "Provider names resolved via CMS NPPES NPI Registry (npiregistry.cms.hhs.gov)",
+        "Coverage period: 2018-01 through 2024-12 (84 months)",
+    ]:
+        doc.add_paragraph(line, style="List Bullet")
+
+    _heading("Methodology", level=2)
+    for line in [
+        "All providers in the dataset were ranked by total Medicaid payments",
+        "Per-unit metrics (cost/claim, cost/beneficiary, claims/beneficiary) computed for each provider",
+        "Fraud signal flags set at the 95th percentile of each metric",
+        "Low code diversity flagged when a provider bills 2 or fewer HCPCS codes",
+        "Ambassador entities identified by provider name matching and cross-referenced across all Florida NPI registrations",
+    ]:
+        doc.add_paragraph(line, style="List Bullet")
+
+    _heading("Limitations", level=2)
+    for line in [
+        "This analysis is based on aggregated billing data, not individual claim records.",
+        "HCPCS codes billed by each Ambassador entity are confirmed for 2 NPIs via a sample; the remaining 7 are inferred.",
+        "This referral identifies statistical anomalies. Determination of fraud requires medical records, patient interviews, and on-site review.",
+    ]:
+        doc.add_paragraph(line, style="List Bullet")
+
+    # -- 7. Requested Actions -------------------------------------------------
+    _heading("7. Requested Actions", level=1)
+    actions = [
+        ("INVESTIGATION", f"Formal investigation into the billing practices of all {report.entity_count} Ambassador-branded entities."),
+        ("MEDICAL RECORD REVIEW", "Verification that claimed home nursing visits (S9124/S9123/S9122) correspond to actual services rendered."),
+        ("PATIENT VERIFICATION", f"Confirmation that the {int(report.entities['total_beneficiaries'].sum()):,} unique beneficiaries are real patients who received claimed services."),
+        ("CORPORATE STRUCTURE REVIEW", "Investigation of ownership and management relationships between the 9 Ambassador NPIs."),
+        ("PAYMENT SUSPENSION", "Consideration of interim payment suspension per 42 C.F.R. § 455.23 pending investigation."),
+    ]
+    for i, (title, detail) in enumerate(actions, 1):
+        p = doc.add_paragraph()
+        r = p.add_run(f"{i}. {title}: ")
+        r.bold = True
+        p.add_run(detail)
+
+    # -- 8. Supporting Materials ----------------------------------------------
+    _heading("8. Contact and Supporting Materials", level=1)
+    doc.add_paragraph("Supporting data artifacts are available upon request:")
+    for f in [
+        "ambassador_health_investigation.json (structured investigation data)",
+        "doge_medicaid_pbc_providers.csv (full provider dataset with fraud flags)",
+        "doge_medicaid_provider_spending_sample.csv (claim-level sample data)",
+        "doge_medicaid_pbc_stats.json (aggregate statistics)",
+    ]:
+        doc.add_paragraph(f, style="List Bullet")
+
+    # -- save to bytes --------------------------------------------------------
+    buf = BytesIO()
+    doc.save(buf)
+    return buf.getvalue()
+
+
+def save_referral_docx(
+    report: AmbassadorFraudReport,
+    agency_key: str = "FL_MFCU",
+    path: Path | None = None,
+) -> Path:
+    """Generate and save the Word referral document."""
+    data = generate_referral_docx(report, agency_key)
+    if path is None:
+        path = ARTIFACT_DIR / "ambassador_health_referral.docx"
+    with open(path, "wb") as f:
+        f.write(data)
+    return path
+
+
 # ---------------------------------------------------------------------------
 # CLI entry-point
 # ---------------------------------------------------------------------------
