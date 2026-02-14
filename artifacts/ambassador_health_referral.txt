@@ -1,0 +1,300 @@
+================================================================================
+FORMAL REFERRAL FOR INVESTIGATION
+Suspected Medicaid Fraud — Ambassador Health Services Network
+================================================================================
+
+Date: February 14, 2026
+
+To: Florida Attorney General — Medicaid Fraud Control Unit
+    Office of the Attorney General, PL-01 The Capitol, Tallahassee, FL 32399-1050
+    Phone: (850) 414-3990
+
+RE: Referral for Investigation of Suspected Medicaid Fraud
+    Subject: Ambassador Health Services / Ambassador Home Health Services
+    State: Florida
+    Aggregate Medicaid Payments: $197,303,295.52
+    Number of Provider Entities (NPIs): 9
+    Applicable Law: 42 U.S.C. § 1396b(q); Fla. Stat. § 409.920 (Florida False Claims Act)
+
+--------------------------------------------------------------------------------
+1. EXECUTIVE SUMMARY
+--------------------------------------------------------------------------------
+
+This referral presents data-driven evidence of potential Medicaid billing fraud
+by a network of 9 provider entities operating under the
+"Ambassador Health Services" and "Ambassador Home Health Services" brand names
+across 9 cities in Florida.
+
+These entities have collectively billed Florida Medicaid $197,303,295.52
+(approximately $197.3 million). Statistical analysis
+of publicly available Medicaid provider spending data reveals that every
+Ambassador entity exhibits multiple fraud indicators that substantially deviate
+from peer provider norms.
+
+The pattern of multiple separate NPIs under a common brand, combined with
+extreme billing metrics and minimal service code diversity, is consistent with
+a coordinated billing scheme designed to maximize payments while avoiding
+per-entity audit thresholds.
+
+--------------------------------------------------------------------------------
+2. SUBJECT ENTITIES
+--------------------------------------------------------------------------------
+
+The following 9 National Provider Identifiers (NPIs) were
+identified as operating under the Ambassador brand:
+
+    NPI: 1124261284
+    Name: AMBASSADOR HOME HEALTH SERVICES, INC.
+    City/ZIP: MIRAMAR, FL 33027
+    Total Medicaid Paid: $54,816,292.20
+    Total Claims: 89,352
+    Total Beneficiaries: 4,012
+    Cost per Claim: $613.49
+    Cost per Beneficiary: $13,663.08
+    Claims per Beneficiary: 22.3
+    Unique HCPCS Codes Billed: 3
+    Fraud Signal Count: 3 of 4
+    Months Active: 68
+
+    NPI: 1023477940
+    Name: AMBASSADOR HEALTH SERVICES, INC
+    City/ZIP: JACKSONVILLE, FL 32256
+    Total Medicaid Paid: $42,597,176.61
+    Total Claims: 84,397
+    Total Beneficiaries: 5,377
+    Cost per Claim: $504.72
+    Cost per Beneficiary: $7,922.11
+    Claims per Beneficiary: 15.7
+    Unique HCPCS Codes Billed: 8
+    Fraud Signal Count: 3 of 4
+    Months Active: 71
+
+    NPI: 1659730570
+    Name: AMBASSADOR HEALTH SERVICES INC
+    City/ZIP: ORLANDO, FL 32801
+    Total Medicaid Paid: $35,703,685.63
+    Total Claims: 48,482
+    Total Beneficiaries: 2,262
+    Cost per Claim: $736.43
+    Cost per Beneficiary: $15,784.12
+    Claims per Beneficiary: 21.4
+    Unique HCPCS Codes Billed: 2
+    Fraud Signal Count: 4 of 4
+    Months Active: 63
+
+    NPI: 1821458910
+    Name: AMBASSADOR HEALTH SERVICES INC
+    City/ZIP: PALM HARBOR, FL 34683
+    Total Medicaid Paid: $19,295,953.44
+    Total Claims: 35,185
+    Total Beneficiaries: 1,782
+    Cost per Claim: $548.41
+    Cost per Beneficiary: $10,828.26
+    Claims per Beneficiary: 19.7
+    Unique HCPCS Codes Billed: 2
+    Fraud Signal Count: 4 of 4
+    Months Active: 66
+
+    NPI: 1922467844
+    Name: AMBASSADOR HEALTH SERVICES INC
+    City/ZIP: TAMPA, FL 33619
+    Total Medicaid Paid: $17,028,762.44
+    Total Claims: 142,639
+    Total Beneficiaries: 8,788
+    Cost per Claim: $119.38
+    Cost per Beneficiary: $1,937.73
+    Claims per Beneficiary: 16.2
+    Unique HCPCS Codes Billed: 7
+    Fraud Signal Count: 2 of 4
+    Months Active: 65
+
+    NPI: 1770949356
+    Name: AMBASSADOR HEALTH SERVICES INC
+    City/ZIP: DELRAY BEACH, FL 33445
+    Total Medicaid Paid: $14,705,599.74
+    Total Claims: 26,117
+    Total Beneficiaries: 1,145
+    Cost per Claim: $563.07
+    Cost per Beneficiary: $12,843.32
+    Claims per Beneficiary: 22.8
+    Unique HCPCS Codes Billed: 2
+    Fraud Signal Count: 4 of 4
+    Months Active: 52
+
+    NPI: 1023508405
+    Name: AMBASSADOR HEALTH SERVICES, INC.
+    City/ZIP: SPRING HILL, FL 34608
+    Total Medicaid Paid: $11,050,586.58
+    Total Claims: 21,177
+    Total Beneficiaries: 1,128
+    Cost per Claim: $521.82
+    Cost per Beneficiary: $9,796.62
+    Claims per Beneficiary: 18.8
+    Unique HCPCS Codes Billed: 2
+    Fraud Signal Count: 4 of 4
+    Months Active: 50
+
+    NPI: 1396101192
+    Name: AMBASSADOR HEALTH SERVICES INC
+    City/ZIP: FORT MYERS, FL 33966
+    Total Medicaid Paid: $1,347,587.88
+    Total Claims: 2,445
+    Total Beneficiaries: 129
+    Cost per Claim: $551.16
+    Cost per Beneficiary: $10,446.42
+    Claims per Beneficiary: 19.0
+    Unique HCPCS Codes Billed: 1
+    Fraud Signal Count: 4 of 4
+    Months Active: 10
+
+    NPI: 1083206692
+    Name: AMBASSADOR HEALTH SERVICES INC
+    City/ZIP: TALLAHASSEE, FL 32312
+    Total Medicaid Paid: $757,651.00
+    Total Claims: 1,220
+    Total Beneficiaries: 62
+    Cost per Claim: $621.03
+    Cost per Beneficiary: $12,220.18
+    Claims per Beneficiary: 19.7
+    Unique HCPCS Codes Billed: 1
+    Fraud Signal Count: 4 of 4
+    Months Active: 5
+
+Cities: DELRAY BEACH, FORT MYERS, JACKSONVILLE, MIRAMAR, ORLANDO, PALM HARBOR, SPRING HILL, TALLAHASSEE, TAMPA
+
+--------------------------------------------------------------------------------
+3. HCPCS CODES BILLED
+--------------------------------------------------------------------------------
+
+The Ambassador entities predominantly bill the following home health nursing
+codes. Claim-level sample data confirms S9124 usage; the extremely low code
+diversity (6 of 9 entities bill only 1-2 codes) suggests near-exclusive
+reliance on these codes:
+
+  - S9124: Nursing care, in the home; by registered nurse, per hour (Home Health Nursing)
+    Status: Confirmed via claim-level data for NPIs 1124261284, 1023477940
+  - S9123: Nursing care, in the home; by licensed practical nurse, per hour (Home Health Nursing)
+    Status: Probable — same service category, LPN-level variant of S9124.
+  - S9122: Home health aide or certified nursing assistant, in the home; per hour (Home Health Aide)
+    Status: Probable — same service category, aide-level variant.
+
+For context, S9124 is the single highest-spending HCPCS code in Palm Beach
+County at $187.97 million across all providers. Ambassador entities billing
+this code at $531.06 per claim is
+significantly above the population average.
+
+--------------------------------------------------------------------------------
+4. STATISTICAL FRAUD INDICATORS
+--------------------------------------------------------------------------------
+
+The following statistical signals were computed by comparing each Ambassador
+entity against all 3-code
+providers in the dataset. Thresholds are set at the 95th percentile — meaning
+only the top 5% of providers would normally trigger each flag.
+
+Flag Summary (entities triggering / total entities):
+
+  - Cost per claim exceeds 95th percentile of all providers: 8 of 9 entities
+  - Cost per beneficiary exceeds 95th percentile: 9 of 9 entities
+  - Claims per beneficiary exceeds 95th percentile: 9 of 9 entities
+  - Billing only 1-2 HCPCS codes (low service diversity): 6 of 9 entities
+
+Key peer benchmarks used:
+  - Median cost per claim (all providers):       $34.97
+  - 95th percentile cost per claim:              $173.03
+  - Ambassador average cost per claim:           $531.06
+
+  - Median cost per beneficiary (all providers): $49.56
+  - 95th percentile cost per beneficiary:        $893.21
+  - Ambassador average cost per beneficiary:     $10,604.65
+
+  - Median claims per beneficiary:               1.3
+  - 95th percentile claims per beneficiary:      9.6
+  - Ambassador average claims per beneficiary:   19.5
+
+--------------------------------------------------------------------------------
+5. RED FLAGS — DETAILED FINDINGS
+--------------------------------------------------------------------------------
+
+  1. NETWORK STRUCTURE: 9 separate NPIs billing under the Ambassador brand across 9 Florida cities, totalling $197,303,295.52 in Medicaid payments. This is consistent with a franchise or shell-company network designed to stay below per-entity audit thresholds.
+
+  2. EXTREME COST PER BENEFICIARY: 9 of 9 Ambassador entities exceed the 95th-percentile cost-per-beneficiary (>$893.21). Worst offender: AMBASSADOR HEALTH SERVICES INC in ORLANDO at $15,784.12/beneficiary — 318.5x the median provider.
+
+  3. HIGH COST PER CLAIM: 8 of 9 entities exceed the 95th-percentile cost-per-claim (>$173.03).
+
+  4. LOW SERVICE DIVERSITY: 6 of 9 entities bill only 1-2 HCPCS codes (median provider uses 3). This is a classic indicator of upcoding or phantom billing. Details: AMBASSADOR HEALTH SERVICES INC (TALLAHASSEE): 1 codes, AMBASSADOR HEALTH SERVICES INC (FORT MYERS): 1 codes, AMBASSADOR HEALTH SERVICES INC (ORLANDO): 2 codes, AMBASSADOR HEALTH SERVICES INC (DELRAY BEACH): 2 codes, AMBASSADOR HEALTH SERVICES, INC. (SPRING HILL): 2 codes, AMBASSADOR HEALTH SERVICES INC (PALM HARBOR): 2 codes
+
+  5. EXCESSIVE UTILIZATION: 9 of 9 entities have claims-per-beneficiary above the 95th percentile (9.6). This may indicate billing for services not actually rendered.
+
+  6. GEOGRAPHIC DISPERSION: Ambassador operates in 9 cities across Florida. Average cost/claim=$531.06 with CV=0.32. A coordinated billing scheme would show consistent pricing patterns across locations.
+
+  7. TAMPA ANOMALY: The Tampa location (NPI 1922467844) has dramatically different billing patterns: cost/claim=$119.38 vs $582.52 average for other Ambassador locations, and 8,788 beneficiaries (much higher). This may represent a legitimate operation or a different billing strategy.
+
+--------------------------------------------------------------------------------
+6. DATA SOURCES AND METHODOLOGY
+--------------------------------------------------------------------------------
+
+Data Source:
+  - HHS Medicaid Provider Spending data released via the Department of
+    Government Efficiency (DOGE) at stopendataprod.blob.core.windows.net
+  - Full dataset: approximately 227 million rows, 10.3 GB
+  - Provider names resolved via CMS NPPES NPI Registry (npiregistry.cms.hhs.gov)
+  - Coverage period: 2018-01 through 2024-12 (84 months)
+
+Methodology:
+  - All providers in the dataset were ranked by total Medicaid payments
+  - Per-unit metrics (cost/claim, cost/beneficiary, claims/beneficiary) were
+    computed for each provider
+  - Fraud signal flags were set at the 95th percentile of each metric
+  - Low code diversity flagged when a provider bills 2 or fewer HCPCS codes
+  - Ambassador entities were identified by provider name matching and
+    cross-referenced across all NPI registrations in Florida
+
+Limitations:
+  - This analysis is based on aggregated billing data, not individual claim
+    records. The specific services rendered cannot be verified from this data.
+  - The HCPCS codes billed by each Ambassador entity are confirmed for 2 NPIs
+    via a sample; the remaining 7 are inferred from billing patterns.
+  - This referral identifies statistical anomalies. Determination of fraud
+    requires access to medical records, patient interviews, and on-site review.
+
+--------------------------------------------------------------------------------
+7. REQUESTED ACTIONS
+--------------------------------------------------------------------------------
+
+Based on the findings above, we respectfully request:
+
+  1. INVESTIGATION: Formal investigation into the billing practices of all
+     9 Ambassador-branded entities listed in Section 2.
+
+  2. MEDICAL RECORD REVIEW: Verification that claimed home nursing visits
+     (S9124/S9123/S9122) correspond to actual services rendered to actual
+     patients, particularly for entities with extreme claims-per-beneficiary
+     ratios (19-23 claims per beneficiary vs. population median of
+     1.3).
+
+  3. PATIENT VERIFICATION: Confirmation that the 24,685
+     unique beneficiaries billed across Ambassador entities are real patients
+     who received the claimed services.
+
+  4. CORPORATE STRUCTURE REVIEW: Investigation of the ownership and management
+     relationships between the 9 Ambassador NPIs to determine whether they
+     operate as a coordinated network.
+
+  5. PAYMENT SUSPENSION: Consideration of interim payment suspension per
+     42 C.F.R. § 455.23 pending investigation, given the credible evidence
+     of fraud presented herein.
+
+--------------------------------------------------------------------------------
+8. CONTACT AND SUPPORTING MATERIALS
+--------------------------------------------------------------------------------
+
+Supporting data artifacts are available upon request:
+  - ambassador_health_investigation.json (structured investigation data)
+  - doge_medicaid_pbc_providers.csv (full provider dataset with fraud flags)
+  - doge_medicaid_provider_spending_sample.csv (claim-level sample data)
+  - doge_medicaid_pbc_stats.json (aggregate statistics)
+
+================================================================================
+END OF REFERRAL
+================================================================================

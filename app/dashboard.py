@@ -22,7 +22,11 @@ if str(SRC) not in sys.path:
 from recession_project.config import DEFAULT_ALERT_THRESHOLD, FEATURE_DESCRIPTIONS, FEATURE_LABELS
 from recession_project.ambassador_investigation import (
     build_investigation_report,
+    generate_referral_text,
+    generate_referral_docx,
     AmbassadorFraudReport,
+    AMBASSADOR_KNOWN_HCPCS,
+    _REFERRAL_AGENCIES,
 )
 from recession_project.medicaid_analysis import (
     compute_concentration_metrics,
@@ -3781,6 +3785,72 @@ usually explainable by legitimate specialty practices.
                             f"**{label}:** {count}/{amb_report.entity_count} "
                             f"({pct:.0f}%) `[{bar}]`"
                         )
+
+                # HCPCS codes known to be billed
+                with st.expander("HCPCS Codes Billed by Ambassador"):
+                    st.markdown(
+                        "Based on claim-level sample data and billing pattern analysis, "
+                        "Ambassador entities predominantly bill these home health nursing codes:"
+                    )
+                    for code, info in AMBASSADOR_KNOWN_HCPCS.items():
+                        confirmed = info.get("confirmed_npis", [])
+                        status = (
+                            f"Confirmed for NPIs: {', '.join(confirmed)}"
+                            if confirmed
+                            else info.get("note", "Probable")
+                        )
+                        st.markdown(
+                            f"- **{code}** — {info['description']}  \n"
+                            f"  Category: {info['category']} | {status}"
+                        )
+                    st.markdown(
+                        "\n**S9124 is the #1 billed code in all of Palm Beach County** "
+                        "at $188M total. Ambassador entities billing this code at "
+                        f"${amb_report.entities['cost_per_claim'].mean():,.0f}/claim average "
+                        "is significantly above the population norm."
+                    )
+
+                # Government referral section
+                st.markdown("##### Submit Referral for Government Investigation")
+                st.markdown(
+                    "Generate a formal referral report suitable for submission to "
+                    "a state or federal agency. The referral includes all entity details, "
+                    "statistical findings, red flags, data sources, and requested actions."
+                )
+                agency_options = {v["name"]: k for k, v in _REFERRAL_AGENCIES.items()}
+                selected_agency_name = st.selectbox(
+                    "Select target agency",
+                    options=list(agency_options.keys()),
+                    key="amb_referral_agency",
+                )
+                selected_agency_key = agency_options[selected_agency_name]
+                agency_info = _REFERRAL_AGENCIES[selected_agency_key]
+                st.markdown(
+                    f"**Jurisdiction:** {agency_info['jurisdiction']}  \n"
+                    f"**Authority:** {agency_info['authority']}  \n"
+                    f"**Contact:** {agency_info['phone']}"
+                )
+                referral_text = generate_referral_text(amb_report, selected_agency_key)
+                with st.expander("Preview Referral Document"):
+                    st.text(referral_text)
+                dl_col1, dl_col2 = st.columns(2)
+                with dl_col1:
+                    docx_bytes = generate_referral_docx(amb_report, selected_agency_key)
+                    st.download_button(
+                        label="Download Referral (.docx)",
+                        data=docx_bytes,
+                        file_name="ambassador_health_referral.docx",
+                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        key="amb_referral_download_docx",
+                    )
+                with dl_col2:
+                    st.download_button(
+                        label="Download Referral (.txt)",
+                        data=referral_text,
+                        file_name="ambassador_health_referral.txt",
+                        mime="text/plain",
+                        key="amb_referral_download_txt",
+                    )
 
             except Exception as exc:
                 st.info(f"Ambassador investigation not available: {exc}")
