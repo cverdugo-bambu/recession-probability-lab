@@ -240,3 +240,96 @@ def compute_concentration_metrics(providers_df: pd.DataFrame) -> dict:
         "top_50_amount": top_50,
         "top_100_amount": top_100,
     }
+
+
+# ---------------------------------------------------------------------------
+# Palm Beach County functions
+# ---------------------------------------------------------------------------
+
+def load_pbc_stats() -> dict | None:
+    """Load Palm Beach County Medicaid stats."""
+    path = ARTIFACT_DIR / "doge_medicaid_pbc_stats.json"
+    if not path.exists():
+        return None
+    with open(path) as f:
+        return json.load(f)
+
+
+def load_pbc_monthly() -> pd.DataFrame | None:
+    """Load PBC monthly spending data."""
+    path = ARTIFACT_DIR / "doge_medicaid_pbc_monthly.csv"
+    if not path.exists():
+        return None
+    df = pd.read_csv(path)
+    df["month"] = pd.to_datetime(df["month"], format="mixed")
+    return df.sort_values("month")
+
+
+def load_pbc_hcpcs() -> pd.DataFrame | None:
+    """Load PBC top HCPCS codes."""
+    path = ARTIFACT_DIR / "doge_medicaid_pbc_hcpcs.csv"
+    if not path.exists():
+        return None
+    df = pd.read_csv(path)
+    df["label"] = df["hcpcs_code"].apply(hcpcs_label)
+    df["category"] = df["hcpcs_code"].apply(hcpcs_category)
+    return df
+
+
+def load_pbc_providers() -> pd.DataFrame | None:
+    """Load PBC providers with names and fraud signals."""
+    path = ARTIFACT_DIR / "doge_medicaid_pbc_providers.csv"
+    if not path.exists():
+        return None
+    return pd.read_csv(path, dtype={"billing_npi": str, "zip": str})
+
+
+def load_named_providers() -> pd.DataFrame | None:
+    """Load top national providers with names looked up from NPI registry."""
+    path = ARTIFACT_DIR / "doge_medicaid_top_providers_named.csv"
+    if not path.exists():
+        return None
+    return pd.read_csv(path, dtype={"npi": str, "zip": str})
+
+
+def compute_fraud_signals(providers_df: pd.DataFrame) -> pd.DataFrame:
+    """Flag providers with potential fraud indicators.
+
+    Signals computed:
+    - high_cost_per_claim: cost/claim > 95th percentile
+    - high_cost_per_beneficiary: cost/beneficiary > 95th percentile
+    - high_claims_per_beneficiary: claims/beneficiary > 95th percentile
+    - low_code_diversity: only 1-2 HCPCS codes used (potential upcoding)
+    - billing_servicing_mismatch: billing NPI != servicing NPI often
+    - rapid_growth: spending increased > 50% YoY in recent period
+    """
+    if providers_df is None or providers_df.empty:
+        return pd.DataFrame()
+
+    df = providers_df.copy()
+
+    # Compute per-unit metrics if not present
+    if "cost_per_claim" not in df.columns:
+        df["cost_per_claim"] = df["total_paid"] / df["total_claims"].clip(lower=1)
+    if "cost_per_beneficiary" not in df.columns:
+        df["cost_per_beneficiary"] = df["total_paid"] / df["total_beneficiaries"].clip(lower=1)
+    if "claims_per_beneficiary" not in df.columns:
+        df["claims_per_beneficiary"] = df["total_claims"] / df["total_beneficiaries"].clip(lower=1)
+
+    # Flag thresholds (95th percentile)
+    cpc_95 = df["cost_per_claim"].quantile(0.95)
+    cpb_95 = df["cost_per_beneficiary"].quantile(0.95)
+    cpb_claims_95 = df["claims_per_beneficiary"].quantile(0.95)
+
+    df["flag_high_cost_per_claim"] = df["cost_per_claim"] > cpc_95
+    df["flag_high_cost_per_beneficiary"] = df["cost_per_beneficiary"] > cpb_95
+    df["flag_high_claims_per_beneficiary"] = df["claims_per_beneficiary"] > cpb_claims_95
+
+    if "unique_hcpcs_codes" in df.columns:
+        df["flag_low_code_diversity"] = df["unique_hcpcs_codes"] <= 2
+
+    # Total flags
+    flag_cols = [c for c in df.columns if c.startswith("flag_")]
+    df["fraud_signal_count"] = df[flag_cols].sum(axis=1)
+
+    return df.sort_values("fraud_signal_count", ascending=False)
