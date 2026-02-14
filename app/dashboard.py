@@ -20,6 +20,10 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from recession_project.config import DEFAULT_ALERT_THRESHOLD, FEATURE_DESCRIPTIONS, FEATURE_LABELS
+from recession_project.ambassador_investigation import (
+    build_investigation_report,
+    AmbassadorFraudReport,
+)
 from recession_project.medicaid_analysis import (
     compute_concentration_metrics,
     compute_fraud_signals,
@@ -3632,6 +3636,154 @@ further investigation.
 Providers with **3+ flags** warrant the highest priority for review. A single flag alone is
 usually explainable by legitimate specialty practices.
 """)
+
+            # --- Ambassador Health Investigation ---
+            st.markdown("---")
+            st.subheader("Ambassador Health Fraud Investigation")
+            st.markdown(
+                "**Deep-dive investigation** into Ambassador-branded entities identified across Florida. "
+                "These providers triggered multiple fraud signals and exhibit a pattern consistent "
+                "with a coordinated billing network."
+            )
+
+            try:
+                amb_report = build_investigation_report(pbc_providers)
+
+                # Key metrics row
+                acol1, acol2, acol3, acol4 = st.columns(4)
+                acol1.metric(
+                    "Ambassador Entities",
+                    f"{amb_report.entity_count}",
+                    help="Distinct NPIs billing under the Ambassador brand",
+                )
+                acol2.metric(
+                    "Total Medicaid Paid",
+                    f"${amb_report.total_paid / 1e6:,.1f}M",
+                )
+                acol3.metric(
+                    "Florida Cities",
+                    f"{len(amb_report.unique_cities)}",
+                )
+                high_flag_amb = (amb_report.entities["fraud_signal_count"] >= 3).sum()
+                acol4.metric(
+                    "Entities w/ 3+ Flags",
+                    f"{high_flag_amb} of {amb_report.entity_count}",
+                )
+
+                # Entity breakdown bar chart
+                amb_sorted = amb_report.entities.sort_values("total_paid", ascending=True)
+                amb_sorted["display"] = amb_sorted.apply(
+                    lambda r: f"{r['provider_name'][:35]} ({r['city']})", axis=1
+                )
+                fig_amb = go.Figure()
+                fig_amb.add_trace(go.Bar(
+                    y=amb_sorted["display"],
+                    x=amb_sorted["total_paid"] / 1e6,
+                    orientation="h",
+                    marker_color=[
+                        "#d62728" if s >= 4 else "#ff7f0e" if s >= 3 else "#1f77b4"
+                        for s in amb_sorted["fraud_signal_count"]
+                    ],
+                    text=[
+                        f"${v / 1e6:.1f}M | {int(f)} flags"
+                        for v, f in zip(amb_sorted["total_paid"], amb_sorted["fraud_signal_count"])
+                    ],
+                    textposition="outside",
+                ))
+                fig_amb.update_layout(
+                    title="Ambassador Entities — Medicaid Billing by Location",
+                    xaxis_title="Total Paid ($M)",
+                    height=max(400, amb_report.entity_count * 45),
+                    margin=dict(l=350),
+                )
+                st.plotly_chart(fig_amb, use_container_width=True, key="tab8_ambassador_entities")
+
+                # Peer comparison metrics
+                st.markdown("##### How Ambassador Compares to All Providers")
+                peers = amb_report.peer_comparison
+                amb_avg_cpc = amb_report.entities["cost_per_claim"].mean()
+                amb_avg_cpb = amb_report.entities["cost_per_beneficiary"].mean()
+                amb_avg_cpb_claims = amb_report.entities["claims_per_beneficiary"].mean()
+
+                pcol1, pcol2, pcol3 = st.columns(3)
+                pcol1.metric(
+                    "Avg Cost/Claim",
+                    f"${amb_avg_cpc:,.0f}",
+                    delta=f"{amb_avg_cpc / peers['median_cost_per_claim']:.0f}x median",
+                    delta_color="inverse",
+                )
+                pcol2.metric(
+                    "Avg Cost/Beneficiary",
+                    f"${amb_avg_cpb:,.0f}",
+                    delta=f"{amb_avg_cpb / peers['median_cost_per_beneficiary']:.0f}x median",
+                    delta_color="inverse",
+                )
+                pcol3.metric(
+                    "Avg Claims/Beneficiary",
+                    f"{amb_avg_cpb_claims:.1f}",
+                    delta=f"{amb_avg_cpb_claims / peers['median_claims_per_beneficiary']:.0f}x median",
+                    delta_color="inverse",
+                )
+
+                # Red flags
+                st.markdown("##### Red Flags Identified")
+                for i, flag in enumerate(amb_report.red_flags, 1):
+                    # Split on first colon for bold header
+                    parts = flag.split(":", 1)
+                    if len(parts) == 2:
+                        st.markdown(f"**{i}. {parts[0]}:**{parts[1]}")
+                    else:
+                        st.markdown(f"**{i}.** {flag}")
+
+                # Entity detail table
+                with st.expander("Full Entity Detail Table"):
+                    amb_display = amb_report.entities.copy()
+                    amb_display["total_paid_fmt"] = amb_display["total_paid"].apply(
+                        lambda v: f"${v / 1e6:,.2f}M"
+                    )
+                    amb_display["cpc_fmt"] = amb_display["cost_per_claim"].apply(
+                        lambda v: f"${v:,.0f}"
+                    )
+                    amb_display["cpb_fmt"] = amb_display["cost_per_beneficiary"].apply(
+                        lambda v: f"${v:,.0f}"
+                    )
+                    show = [
+                        "provider_name", "city", "billing_npi", "total_paid_fmt",
+                        "total_claims", "total_beneficiaries", "cpc_fmt", "cpb_fmt",
+                        "claims_per_beneficiary", "unique_hcpcs_codes", "fraud_signal_count",
+                    ]
+                    rename = {
+                        "provider_name": "Provider", "city": "City", "billing_npi": "NPI",
+                        "total_paid_fmt": "Total Paid", "total_claims": "Claims",
+                        "total_beneficiaries": "Beneficiaries", "cpc_fmt": "$/Claim",
+                        "cpb_fmt": "$/Beneficiary", "claims_per_beneficiary": "Claims/Bene",
+                        "unique_hcpcs_codes": "HCPCS Codes", "fraud_signal_count": "Flags",
+                    }
+                    st.dataframe(
+                        amb_display[show].rename(columns=rename),
+                        use_container_width=True,
+                    )
+
+                # Flag summary breakdown
+                with st.expander("Flag Breakdown by Signal Type"):
+                    flag_data = amb_report.flags_summary
+                    flag_labels = {
+                        "flag_high_cost_per_claim": "High Cost/Claim (>95th pctl)",
+                        "flag_high_cost_per_beneficiary": "High Cost/Beneficiary (>95th pctl)",
+                        "flag_high_claims_per_beneficiary": "High Claims/Beneficiary (>95th pctl)",
+                        "flag_low_code_diversity": "Low Code Diversity (1-2 codes)",
+                    }
+                    for flag_col, count in flag_data.items():
+                        label = flag_labels.get(flag_col, flag_col)
+                        pct = count / amb_report.entity_count * 100
+                        bar = "X" * count + "." * (amb_report.entity_count - count)
+                        st.markdown(
+                            f"**{label}:** {count}/{amb_report.entity_count} "
+                            f"({pct:.0f}%) `[{bar}]`"
+                        )
+
+            except Exception as exc:
+                st.info(f"Ambassador investigation not available: {exc}")
 
             st.caption(
                 "Data sources: DOGE API (api.doge.gov) for grants, contracts, and CMS payments; "
