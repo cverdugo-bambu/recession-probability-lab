@@ -3566,7 +3566,7 @@ def main() -> None:
                         top_flagged = pbc_flagged[pbc_flagged["fraud_signal_count"] >= 2].head(25).copy()
                         if not top_flagged.empty and "provider_name" in top_flagged.columns:
                             top_flagged["display_name"] = top_flagged.apply(
-                                lambda r: f"{r['provider_name'][:40]} ({r['city']})" if pd.notna(r.get("city")) and r.get("city") else r["provider_name"][:45],
+                                lambda r: f"{str(r.get('provider_name', 'Unknown'))[:40]} ({r['city']})" if pd.notna(r.get("city")) and r.get("city") else str(r.get("provider_name", "Unknown"))[:45],
                                 axis=1,
                             )
                             fig_flagged = go.Figure()
